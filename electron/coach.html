@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unstuck Coach</title>
+  <link rel="stylesheet" href="./coach.css">
+</head>
+<body>
+  <div class="coach-panel" id="coach-panel">
+    <!-- Draggable Header -->
+    <header class="panel-header" id="panel-header">
+      <div class="brand-section">
+        <div class="brand-indicator" id="brand-indicator"></div>
+        <span class="panel-title">Unstuck Coach</span>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge" id="status-badge">Ready</span>
+      </div>
+    </header>
+
+    <!-- Developer Mock QA Bar (Visible only in --mock-ui mode) -->
+    <div class="mock-bar" id="mock-bar">
+      <span>Developer QA Mode:</span>
+      <select class="mock-select" id="mock-state-select" aria-label="Select Mock State">
+        <option value="ready">1. ready</option>
+        <option value="capturing">2. capturing</option>
+        <option value="analysing">3. analysing</option>
+        <option value="guidance" selected>4. guidance</option>
+        <option value="recovery">5. recovery</option>
+        <option value="paused">6. paused</option>
+        <option value="complete">7. complete</option>
+        <option value="error">8. error</option>
+        <option value="text-only">9. text-only</option>
+      </select>
+    </div>
+
+    <!-- Body Area -->
+    <main class="panel-body">
+      <!-- Goal Summary Chip -->
+      <div class="goal-context">
+        <div class="goal-dot"></div>
+        <span class="goal-label" id="goal-label">Requests by department</span>
+      </div>
+
+      <!-- Busy Indicator -->
+      <div class="busy-box" id="busy-box">
+        <div class="busy-spinner"></div>
+        <span id="busy-label">Reading your screen…</span>
+      </div>
+
+      <!-- Dominant Instruction Box -->
+      <div class="instruction-box" id="instruction-box">
+        <h2 class="instruction-text" id="instruction-text">Click "Insert" on the top menu bar to open chart options.</h2>
+      </div>
+
+      <!-- Recovery Rationale Box (Shown in recovery state) -->
+      <div class="recovery-box" id="recovery-box">
+        <strong>Correction:</strong> <span id="recovery-text">You clicked "Format" instead of "Insert". Let's get back on track.</span>
+      </div>
+
+      <!-- What I Noticed Observation -->
+      <div class="observation-box" id="observation-box">
+        <div class="observation-header">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M6 4v2.5M6 8.5h.01" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <span>What I noticed</span>
+        </div>
+        <p class="observation-text" id="observation-text">Data range A1:B5 is selected. The top menu bar is visible.</p>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="controls-row">
+        <button class="btn-check" id="btn-check">
+          <span>Check my progress</span>
+        </button>
+        <button class="btn-sec" id="btn-pause">Pause</button>
+        <button class="btn-sec" id="btn-stop">Stop</button>
+      </div>
+    </main>
+
+    <!-- Footer Telemetry -->
+    <footer class="panel-footer">
+      <span>Shortcut: Ctrl+Alt+U</span>
+      <span class="budget-chip" id="budget-chip">11/12 checks left</span>
+    </footer>
+  </div>
+
+  <script src="./coach.js"></script>
+</body>
+</html>

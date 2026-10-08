@@ -33,3 +33,41 @@ contextBridge.exposeInMainWorld('unstuckOverlay', {
     ipcRenderer.send('renderer-error', err);
   }
 });
+
+/**
+ * Narrow isolated IPC bridge for Unstuck Launch and Coach Windows.
+ */
+contextBridge.exposeInMainWorld('electronAPI', {
+  startCoaching: (goal) => {
+    ipcRenderer.send('start-coaching', { goal: String(goal || '') });
+  },
+  getTargetInfo: async () => {
+    return ipcRenderer.invoke('get-target-info');
+  },
+  triggerCheck: () => {
+    ipcRenderer.send('trigger-check');
+  },
+  pauseSession: () => {
+    ipcRenderer.send('pause-session');
+  },
+  resumeSession: () => {
+    ipcRenderer.send('resume-session');
+  },
+  stopSession: () => {
+    ipcRenderer.send('stop-session');
+  },
+  resetSession: () => {
+    ipcRenderer.send('reset-session');
+  },
+  minimizeWindow: () => {
+    ipcRenderer.send('window-minimize');
+  },
+  closeWindow: () => {
+    ipcRenderer.send('window-close');
+  },
+  onCoachUpdate: (callback) => {
+    if (typeof callback === 'function') {
+      ipcRenderer.on('coach-state-update', (_event, data) => callback(data));
+    }
+  }
+});

@@ -1,0 +1,353 @@
+@import './tokens.css';
+@import './fonts.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: transparent;
+  font-family: var(--font-body);
+  color: var(--color-text-dark);
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 12px;
+}
+
+/* Compact Active Coach Card */
+.coach-panel {
+  width: 100%;
+  max-width: 380px;
+  background-color: var(--color-warm-paper);
+  border: 1.5px solid var(--color-border-fine);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-active-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Draggable Header */
+.panel-header {
+  height: 40px;
+  padding: 0 var(--space-4);
+  background: var(--color-paper-elevated);
+  border-bottom: 1px solid var(--color-border-fine);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.brand-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-moss);
+  transition: background-color 0.2s ease;
+}
+
+.panel-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-dark);
+  letter-spacing: -0.01em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(166, 182, 143, 0.2);
+  color: #384C3E;
+  transition: all 0.2s ease;
+}
+
+/* Developer QA Mock Selector */
+.mock-bar {
+  display: none;
+  background: #111B15;
+  color: #F4F1E8;
+  padding: 6px 12px;
+  font-size: 11px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #334236;
+}
+
+.mock-bar.visible {
+  display: flex;
+}
+
+.mock-select {
+  background: #26382D;
+  color: #F4F1E8;
+  border: 1px solid #455C4E;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+  font-family: var(--font-mono);
+}
+
+/* Panel Content Body */
+.panel-body {
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Small Goal Context Chip */
+.goal-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+}
+
+.goal-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-secondary);
+}
+
+.goal-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+  font-weight: 500;
+}
+
+/* Dominant Next Move Instruction */
+.instruction-box {
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.instruction-text {
+  font-family: var(--font-heading);
+  font-size: 18.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: var(--color-text-dark);
+}
+
+/* What I Noticed Observation Line */
+.observation-box {
+  background: #FFFFFF;
+  border: 1px solid var(--color-border-fine);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.observation-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.observation-text {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #2D3A30;
+}
+
+/* Recovery Notice Box (when state == recovery) */
+.recovery-box {
+  display: none;
+  background: var(--color-clay-soft);
+  border: 1px solid rgba(213, 139, 100, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #7A391A;
+}
+
+.recovery-box.active {
+  display: block;
+}
+
+/* Subdued Busy Spinner */
+.busy-box {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.busy-box.active {
+  display: flex;
+}
+
+.busy-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(166, 182, 143, 0.3);
+  border-top-color: var(--color-moss-dark);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy-spinner {
+    animation: none !important;
+    border-top-color: var(--color-moss-dark);
+    border-style: dashed;
+  }
+}
+
+/* Action Controls */
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.btn-check {
+  flex: 1;
+  background: var(--color-moss);
+  color: var(--color-text-moss-button);
+  border: none;
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-check:hover:not(:disabled) {
+  background: var(--color-moss-light);
+  transform: translateY(-1px);
+}
+
+.btn-check:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-sec {
+  background: var(--color-paper-elevated);
+  border: 1px solid var(--color-border-fine);
+  color: var(--color-text-dark);
+  border-radius: var(--radius-control);
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-sec:hover {
+  background: #E0DDD2;
+}
+
+/* Footer Telemetry & Shortcuts */
+.panel-footer {
+  padding: 6px var(--space-4) 8px;
+  background: var(--color-paper-elevated);
+  border-top: 1px solid var(--color-border-fine);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.budget-chip {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+/* State-Specific Theme Overrides */
+.coach-panel.state-recovery {
+  border-color: var(--color-clay);
+  box-shadow: var(--shadow-glow-clay), var(--shadow-active-panel);
+}
+
+.coach-panel.state-recovery .status-badge {
+  background: rgba(213, 139, 100, 0.2);
+  color: #7A391A;
+}
+
+.coach-panel.state-complete {
+  border-color: #6C8B58;
+}
+
+.coach-panel.state-complete .status-badge {
+  background: #E1ECCE;
+  color: #2F4D20;
+}
+
+.coach-panel.state-paused {
+  opacity: 0.9;
+}
+
+.coach-panel.state-error {
+  border-color: #C2635B;
+}
+
+.coach-panel.state-error .status-badge {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}

@@ -1,21 +1,18 @@
 /**
- * Unstuck - Native Capture-to-Highlight & AI Coaching Diagnostic
+ * Unstuck - AI Desktop Coach Desktop Application
  * 
- * Demonstrates:
- * 1. Overlay-Only Visibility Mode (--test-overlay)
- * 2. Static Label OCR Targeting Mode (--target=<label>)
- * 3. AI Coaching Loop Integration (--coach)
- * 
- * Invariants:
- * - Single English Tesseract worker reused in memory.
- * - Dynamic runtime coordinate mapping; never hardcoded coordinates.
- * - Context isolation & sandboxing strictly enabled.
- * - Secret isolation: GEMINI_API_KEY handled exclusively in main process.
- * - Strictly bounded: 12-request session budget, 25s timeout, zero retries.
- * - Grounded target candidate selection (no model-guessed coordinates).
+ * Main Electron process managing:
+ * - Launch Window (Product entry, task selection, knot-to-clear centerpiece)
+ * - Active Coach Window (Draggable compact 360px paper panel)
+ * - Transparent Pass-Through Overlay (Grounded Moss outlines with dark contrast stroke)
+ * - Target Scoping & Calc Geometry Guard (HWND & process identity)
+ * - Window Cropping & Coordinate Offset Mapping
+ * - Persistent 12-Request API Budget & 5s Pacing (.api_budget.json)
+ * - Secret Isolation (GEMINI_API_KEY handled exclusively in main process)
+ * - Deterministic Mock UI Developer Mode (--mock-ui)
  */
 
-import { app, BrowserWindow, desktopCapturer, globalShortcut, screen, ipcMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, globalShortcut, screen, ipcMain, nativeImage } from 'electron';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +21,8 @@ import { resolveTargetInCapture, terminateTesseractWorker } from './target-resol
 import { getForegroundWindowInfo } from './window-scoping.js';
 import { extractOcrCandidates } from './candidate-extractor.js';
 import { queryGeminiCoach, CoachingTurnHistory } from './gemini-coach.js';
+import { calculateWindowCrop } from '../shared/crop-geometry.js';
+import { defaultApiBudget } from '../shared/api-budget.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +33,7 @@ interface CliOptions {
   runOnce: boolean;
   testOverlay: boolean;
   coach: boolean;
+  mockUi: boolean;
 }
 
 function parseCliArgs(): CliOptions {
@@ -42,6 +42,7 @@ function parseCliArgs(): CliOptions {
   let runOnce = false;
   let testOverlay = false;
   let coach = false;
+  let mockUi = false;
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--target=')) {
@@ -54,10 +55,12 @@ function parseCliArgs(): CliOptions {
       testOverlay = true;
     } else if (arg === '--coach') {
       coach = true;
+    } else if (arg === '--mock-ui') {
+      mockUi = true;
     }
   }
 
-  return { target, debugCapture, runOnce, testOverlay, coach };
+  return { target, debugCapture, runOnce, testOverlay, coach, mockUi };
 }
 
 const cliOptions = parseCliArgs();
@@ -67,82 +70,147 @@ function loadApiKey(): string | null {
   const envPath = path.resolve(process.cwd(), '.env');
   if (!fs.existsSync(envPath)) return null;
 
-  const content = fs.readFileSync(envPath, 'utf-8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx !== -1) {
-      const key = trimmed.slice(0, eqIdx).trim();
-      const val = trimmed.slice(eqIdx + 1).trim();
-      if (key === 'GEMINI_API_KEY' && val.length > 10 && !val.includes('placeholder') && !val.includes('your_')) {
-        return val;
+  try {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        if (key === 'GEMINI_API_KEY' && val.length > 10 && !val.includes('placeholder') && !val.includes('your_')) {
+          return val;
+        }
       }
     }
+  } catch {
+    // Read failure fallback
   }
   return null;
 }
 
 const GEMINI_API_KEY = loadApiKey();
 
-// Runtime asset path resolution
+// Safe Asset Path Resolver
 const projectRoot = process.cwd();
-const candidatePreloadPaths = [
-  path.resolve(projectRoot, 'electron', 'preload.cjs'),
-  path.resolve(__dirname, 'preload.cjs')
-];
-const preloadPath = candidatePreloadPaths.find(p => fs.existsSync(p)) || candidatePreloadPaths[0];
-
-const candidateHtmlPaths = [
-  path.resolve(projectRoot, 'electron', 'overlay.html'),
-  path.resolve(__dirname, 'overlay.html')
-];
-const htmlPath = candidateHtmlPaths.find(p => fs.existsSync(p)) || candidateHtmlPaths[0];
-
-// Ensure dist colocation
-try {
-  const distDir = path.resolve(projectRoot, 'dist', 'electron');
-  if (fs.existsSync(distDir)) {
-    const distPreload = path.join(distDir, 'preload.cjs');
-    const distHtml = path.join(distDir, 'overlay.html');
-    if (!fs.existsSync(distPreload) && fs.existsSync(candidatePreloadPaths[0])) {
-      fs.copyFileSync(candidatePreloadPaths[0], distPreload);
-    }
-    if (!fs.existsSync(distHtml) && fs.existsSync(candidateHtmlPaths[0])) {
-      fs.copyFileSync(candidateHtmlPaths[0], distHtml);
-    }
-  }
-} catch {
-  // Colocation fallback
+function resolveAsset(relativePath: string): string {
+  const rootPath = path.resolve(projectRoot, 'electron', relativePath);
+  if (fs.existsSync(rootPath)) return rootPath;
+  const distPath = path.resolve(__dirname, relativePath);
+  if (fs.existsSync(distPath)) return distPath;
+  return rootPath;
 }
 
+const preloadPath = resolveAsset('preload.cjs');
+const overlayHtmlPath = resolveAsset('overlay.html');
+const launchHtmlPath = resolveAsset('launch.html');
+const coachHtmlPath = resolveAsset('coach.html');
+
+// Windows references
+let launchWindow: BrowserWindow | null = null;
+let coachWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
+
+// Operational State
 let isInFlight = false;
 let currentRequestId = 0;
-let initialDisplayBounds: DisplayBounds | null = null;
-
-// Coaching session state
-const MAX_SESSION_REQUESTS = 12;
-let sessionRequestCount = 0;
+let isPaused = false;
+let coachingGoal = 'Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.';
 let coachingHistory: CoachingTurnHistory[] = [];
 let previousInstruction: string | null = null;
 let previousCandidateSig: string | null = null;
 
-const COACHING_GOAL = 'Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.';
+/**
+ * Creates the Launch Window (1040x700 resizable)
+ */
+function createLaunchWindow(): BrowserWindow {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: scrW, height: scrH } = primaryDisplay.workAreaSize;
+
+  const winW = Math.min(1040, scrW - 40);
+  const winH = Math.min(700, scrH - 40);
+
+  const win = new BrowserWindow({
+    width: winW,
+    height: winH,
+    minWidth: 720,
+    minHeight: 520,
+    frame: false,
+    backgroundColor: '#111B15',
+    center: true,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: preloadPath
+    }
+  });
+
+  win.loadFile(launchHtmlPath);
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => { launchWindow = null; });
+  return win;
+}
+
+/**
+ * Creates the Active Coach Window (compact ~380px paper panel)
+ */
+function createCoachWindow(isMockMode = false): BrowserWindow {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+
+  const panelW = 380;
+  const panelH = 430;
+  const margin = 24;
+
+  const x = Math.round(workArea.x + workArea.width - panelW - margin);
+  const y = Math.round(workArea.y + workArea.height - panelH - margin);
+
+  const win = new BrowserWindow({
+    x,
+    y,
+    width: panelW,
+    height: panelH,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    resizable: false,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: preloadPath
+    }
+  });
+
+  const queryUrl = isMockMode ? `${coachHtmlPath}?mock=true` : coachHtmlPath;
+  win.loadFile(queryUrl);
+
+  win.once('ready-to-show', () => {
+    win.show();
+    sendCoachUpdate({
+      state: 'ready',
+      goal: coachingGoal,
+      budget: defaultApiBudget.getState().max - defaultApiBudget.getState().used,
+      isMockMode
+    });
+  });
+
+  win.on('closed', () => { coachWindow = null; });
+  return win;
+}
 
 /**
  * Creates the transparent click-through overlay window.
  */
 function createOverlayWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
-  const fullBounds = primaryDisplay.bounds; // FULL monitor bounds
-
-  initialDisplayBounds = {
-    x: fullBounds.x,
-    y: fullBounds.y,
-    width: fullBounds.width,
-    height: fullBounds.height
-  };
+  const fullBounds = primaryDisplay.bounds;
 
   const win = new BrowserWindow({
     x: fullBounds.x,
@@ -167,29 +235,38 @@ function createOverlayWindow(): BrowserWindow {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setIgnoreMouseEvents(true, { forward: true });
 
-  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[Renderer Load Error] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
-  });
-
-  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    console.log(`[Renderer Console L${level}] ${message} (${sourceId}:${line})`);
-  });
-
-  win.loadFile(htmlPath);
-
-  win.on('closed', () => {
-    overlayWindow = null;
-  });
-
+  win.loadFile(overlayHtmlPath);
+  win.on('closed', () => { overlayWindow = null; });
   return win;
 }
 
 /**
- * Dismisses active outline and cancels pending in-flight operations.
+ * Helper to dispatch structured state updates to the Coach Window
+ */
+function sendCoachUpdate(data: {
+  state: 'ready' | 'capturing' | 'analysing' | 'guidance' | 'recovery' | 'paused' | 'complete' | 'error' | 'text-only';
+  instruction?: string;
+  observation?: string;
+  recovery?: string | null;
+  badge?: string;
+  goal?: string;
+  budget?: number;
+  isMockMode?: boolean;
+}): void {
+  if (coachWindow && !coachWindow.isDestroyed()) {
+    coachWindow.webContents.send('coach-state-update', {
+      ...data,
+      budget: data.budget !== undefined ? data.budget : (defaultApiBudget.getState().max - defaultApiBudget.getState().used)
+    });
+  }
+}
+
+/**
+ * Dismisses active outline and cancels pending operations.
  */
 function handleDismiss(): void {
   currentRequestId++;
-  console.log('[Diagnostic Lifecycle] Dismissal triggered: pending operations invalidated, overlay cleared.');
+  console.log('[Lifecycle] Dismissal triggered: pending operations invalidated, overlay cleared.');
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('clear-outline');
   }
@@ -200,62 +277,23 @@ function handleDismiss(): void {
  */
 function handleSessionReset(): void {
   currentRequestId++;
-  sessionRequestCount = 0;
+  defaultApiBudget.resetBudget();
   coachingHistory = [];
   previousInstruction = null;
   previousCandidateSig = null;
-  console.log(`\n======================================================`);
-  console.log(`[SESSION RESET] Coaching history cleared.`);
-  console.log(`[SESSION RESET] 12-request session budget reset.`);
-  console.log(`======================================================\n`);
+  isPaused = false;
+  console.log(`[SESSION RESET] Coaching history and 12-request budget reset.`);
+
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('clear-outline');
   }
-}
 
-/**
- * Diagnostic Mode: Explicit Overlay-Only Test
- */
-function executeTestOverlay(): void {
-  if (!overlayWindow || overlayWindow.isDestroyed()) {
-    console.error('[Diagnostic Error] Overlay window not available for test');
-    return;
-  }
-
-  const primary = screen.getPrimaryDisplay();
-  const bounds = primary.bounds;
-
-  const testWidth = 320;
-  const testHeight = 160;
-  const testRect = {
-    x: Math.round(bounds.width / 2 - testWidth / 2),
-    y: Math.round(bounds.height / 2 - testHeight / 2),
-    width: testWidth,
-    height: testHeight
-  };
-
-  console.log(`\n======================================================`);
-  console.log(`[OVERLAY-ONLY RENDERING DIAGNOSTIC MODE]`);
-  console.log(`[NOTICE: Synthetic test rectangle only. Never used as live target fallback.]`);
-  console.log(`  - Target Display: ${primary.id} (${bounds.width}x${bounds.height} logical)`);
-  console.log(`  - Test Rect (Logical): [x: ${testRect.x}, y: ${testRect.y}, w: ${testRect.width}, h: ${testRect.height}]`);
-
-  overlayWindow.showInactive();
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-
-  const winBounds = overlayWindow.getBounds();
-  console.log(`[Overlay Window State] isVisible=${overlayWindow.isVisible()}, bounds=${winBounds.x},${winBounds.y} ${winBounds.width}x${winBounds.height}`);
-
-  overlayWindow.webContents.send('show-outline', {
-    rect: testRect,
-    label: 'OVERLAY VISIBILITY TEST',
-    isTest: true,
-    autoExpireMs: 30000
+  sendCoachUpdate({
+    state: 'ready',
+    instruction: 'Session reset. Focus LibreOffice Calc and click Check to begin.',
+    observation: 'Ready for initial check.',
+    budget: 12
   });
-
-  console.log(`[Diagnostic] Dispatched test rectangle. Active for 30s. Press Ctrl+Alt+D or Escape to dismiss.`);
-  console.log(`======================================================\n`);
 }
 
 /**
@@ -267,14 +305,30 @@ async function executeCoachingTurn(): Promise<boolean> {
     return false;
   }
 
-  if (sessionRequestCount >= MAX_SESSION_REQUESTS) {
-    console.log(`\n[Session Budget Reached] Enforced ${MAX_SESSION_REQUESTS}-request session limit reached.`);
-    console.log(`Press Ctrl+Alt+R to reset session and budget.\n`);
+  if (isPaused) {
+    console.log('[AI Coach] Session is paused; click Resume to continue.');
+    return false;
+  }
+
+  // Budget allowance check
+  const allowance = defaultApiBudget.checkAllowance();
+  if (!allowance.allowed) {
+    console.warn(`[Budget Enforcement] ${allowance.reason}`);
+    sendCoachUpdate({
+      state: 'error',
+      instruction: allowance.reason || 'API Limit reached.',
+      observation: 'Please wait or reset session (Ctrl+Alt+R).'
+    });
     return false;
   }
 
   if (!GEMINI_API_KEY) {
-    console.error('[AI Coach Error] No GEMINI_API_KEY configured in .env. Cannot query coaching model.');
+    console.error('[AI Coach Error] No GEMINI_API_KEY configured in .env.');
+    sendCoachUpdate({
+      state: 'error',
+      instruction: 'API Key missing. Please configure GEMINI_API_KEY in your local .env file.',
+      observation: 'Secret isolation preserved.'
+    });
     return false;
   }
 
@@ -284,24 +338,22 @@ async function executeCoachingTurn(): Promise<boolean> {
   const totalStartTime = performance.now();
 
   try {
-    console.log(`\n======================================================`);
-    console.log(`[AI COACH TURN #${turnIndex}] Starting observation check...`);
-    console.log(`[Session Budget] Request ${sessionRequestCount + 1} of ${MAX_SESSION_REQUESTS}`);
+    sendCoachUpdate({ state: 'capturing' });
 
-    if (!overlayWindow || overlayWindow.isDestroyed()) {
-      console.error('[AI Coach Error] Overlay window not available');
-      return false;
+    // 1. Clear previous outline and hide overlay & coach window before capture
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('clear-outline');
+      overlayWindow.hide();
     }
-
-    // 1. Clear previous outline and hide overlay
-    overlayWindow.webContents.send('clear-outline');
-    overlayWindow.hide();
+    if (coachWindow && !coachWindow.isDestroyed()) {
+      coachWindow.hide();
+    }
 
     // 2. Allow DWM redraw
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     if (requestId !== currentRequestId) {
-      console.log(`[AI Coach Turn #${turnIndex}] Cancelled during DWM redraw.`);
+      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
       return false;
     }
 
@@ -309,11 +361,21 @@ async function executeCoachingTurn(): Promise<boolean> {
     const windowInfo = getForegroundWindowInfo();
     console.log(`[Target Scoping] Active window: "${windowInfo.title}" (Process: ${windowInfo.process})`);
 
-    if (!windowInfo.isCalc) {
-      console.warn(`[Target Scoping Guard] Foreground window is not LibreOffice Calc!`);
-      console.warn(`  - Detected: "${windowInfo.title}" (${windowInfo.process})`);
-      console.warn(`  - Action: Please switch to LibreOffice Calc and press Ctrl+Alt+U.`);
+    // Restore coach & overlay windows
+    if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.showInactive();
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+
+    if (!windowInfo.isCalc) {
+      console.warn(`[Target Scoping Guard] Active window is not LibreOffice Calc!`);
+      sendCoachUpdate({
+        state: 'error',
+        instruction: 'Please switch to LibreOffice Calc and click Check again.',
+        observation: `Current active window is "${windowInfo.title || 'Desktop'}" (${windowInfo.process || 'Unknown'}).`
+      });
       return false;
     }
 
@@ -338,92 +400,100 @@ async function executeCoachingTurn(): Promise<boolean> {
     const matchedSource = sources.find((s) => s.display_id === targetDisplayId) || sources[0];
 
     if (!matchedSource) {
-      console.error(`[AI Coach Error] No desktopCapturer source matched display ID ${targetDisplayId}`);
+      sendCoachUpdate({
+        state: 'error',
+        instruction: 'Screen capture failed: Display surface detached.',
+        observation: 'Session context preserved.'
+      });
       return false;
     }
 
     const thumbnail = matchedSource.thumbnail;
     const captureDims = thumbnail.getSize();
-    const imageBuffer = thumbnail.toPNG();
+    const fullImageBuffer = thumbnail.toPNG();
     const captureLatencyMs = performance.now() - captureStartTime;
 
-    console.log(`[AI Coach Capture] Captured ${captureDims.width}x${captureDims.height} px in ${captureLatencyMs.toFixed(1)} ms`);
-
-    overlayWindow.showInactive();
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-
-    if (captureDims.width === 0 || captureDims.height === 0 || imageBuffer.length === 0) {
-      console.warn(`[AI Coach Capture Warning] Empty capture received (display locked/asleep).`);
+    if (captureDims.width === 0 || captureDims.height === 0 || fullImageBuffer.length === 0) {
+      sendCoachUpdate({
+        state: 'error',
+        instruction: 'Display appears locked or asleep.',
+        observation: 'Desktop capture surface returned zero bytes.'
+      });
       return false;
     }
 
-    if (requestId !== currentRequestId) {
-      console.log(`[AI Coach Turn #${turnIndex}] Cancelled after capture.`);
-      return false;
+    if (requestId !== currentRequestId) return false;
+
+    // 5. Target Region Cropping & Offset Calculation
+    const cropCalc = calculateWindowCrop(windowInfo.bounds, captureDims, scaleFactor);
+    let targetImageBuffer = fullImageBuffer;
+    let cropOffset = { x: 0, y: 0 };
+
+    if (cropCalc.isCropped) {
+      const croppedNative = nativeImage.createFromBuffer(fullImageBuffer).crop(cropCalc.cropRect);
+      targetImageBuffer = croppedNative.toPNG();
+      cropOffset = { x: cropCalc.offsetX, y: cropCalc.offsetY };
+      console.log(`[Target Cropping] Cropped capture to Calc window [${cropCalc.cropRect.width}x${cropCalc.cropRect.height}] with offset (+${cropOffset.x}, +${cropOffset.y})`);
     }
 
-    // 5. Extract OCR candidates filtered to Calc window bounds
-    console.log(`[AI Coach OCR] Extracting candidate text controls inside Calc bounds...`);
-    const extraction = await extractOcrCandidates(imageBuffer, windowInfo.bounds, scaleFactor);
-    console.log(`[AI Coach OCR] Found ${extraction.candidates.length} grounded candidates in ${extraction.durationMs.toFixed(1)} ms.`);
+    sendCoachUpdate({ state: 'analysing' });
 
-    if (requestId !== currentRequestId) {
-      console.log(`[AI Coach Turn #${turnIndex}] Cancelled during OCR candidate extraction.`);
-      return false;
+    // 6. Extract OCR Candidates within active window
+    const extraction = await extractOcrCandidates(targetImageBuffer, windowInfo.bounds, scaleFactor);
+
+    // Map candidate pixel bounding boxes back to full capture pixel space
+    if (cropCalc.isCropped) {
+      for (const cand of extraction.candidates) {
+        cand.pixelBbox.x += cropOffset.x;
+        cand.pixelBbox.y += cropOffset.y;
+      }
     }
 
-    // 6. Detect unchanged screen state
+    if (requestId !== currentRequestId) return false;
+
+    // 7. Detect unchanged screen state
     const currentCandidateSig = extraction.candidates.map(c => c.text).sort().join('|');
     const isScreenUnchanged = previousCandidateSig !== null && currentCandidateSig === previousCandidateSig;
 
-    if (isScreenUnchanged) {
-      console.log(`[Observer Note] Screen state appears identical to previous check.`);
-    }
-
-    // 7. Query Gemini Coach
-    sessionRequestCount++;
-    console.log(`[AI Coach Gemini] Querying gemini-3.1-flash-lite (Turn #${turnIndex})...`);
+    // 8. Query Gemini Coach
     const result = await queryGeminiCoach({
       apiKey: GEMINI_API_KEY,
-      imageBuffer,
-      goal: COACHING_GOAL,
+      imageBuffer: targetImageBuffer,
+      goal: coachingGoal,
       previousInstruction,
       history: coachingHistory,
       candidates: extraction.candidates,
       isScreenUnchanged
     });
 
-    if (requestId !== currentRequestId) {
-      console.log(`[AI Coach Turn #${turnIndex}] Invalidate late response: session was dismissed or reset.`);
-      return false;
-    }
+    // Record request in persistent budget
+    defaultApiBudget.recordRequest({
+      model: 'gemini-3.1-flash-lite',
+      status: result.success ? 'success' : 'error',
+      latencyMs: result.durationMs,
+      statusCode: result.statusCode,
+      notes: result.error
+    });
+
+    if (requestId !== currentRequestId) return false;
 
     const totalDurationMs = performance.now() - totalStartTime;
 
     if (!result.success || !result.guidance) {
-      console.error(`\n[AI Coach Error] ${result.error || 'Failed to obtain valid guidance'}`);
-      console.log(`[Diagnostic Timings] Capture: ${captureLatencyMs.toFixed(1)} ms | OCR: ${extraction.durationMs.toFixed(1)} ms | Model Latency: ${result.durationMs.toFixed(1)} ms | Total: ${totalDurationMs.toFixed(1)} ms`);
-      console.log(`Session context preserved. Press Ctrl+Alt+U to try again.\n`);
+      console.error(`[AI Coach Error] ${result.error}`);
+      sendCoachUpdate({
+        state: 'error',
+        instruction: result.error || 'Temporary reasoning error.',
+        observation: 'Session preserved. Click Check to try again.'
+      });
       return false;
     }
 
     const g = result.guidance;
 
-    console.log(`\n======================================================`);
-    console.log(`[AI COACH GUIDANCE - Turn #${turnIndex}]`);
-    console.log(`  - Assessment: ${g.assessment.toUpperCase()}`);
-    console.log(`  - Status:     ${g.status.toUpperCase()}`);
-    console.log(`  - Observation: "${g.observation}"`);
-    console.log(`  >>> INSTRUCTION: "${g.instruction}"`);
-    console.log(`  - Expected Outcome: "${g.expectedOutcome}"`);
-    if (g.reason) console.log(`  - Note: "${g.reason}"`);
-
-    // 8. Grounded Overlay Highlight
+    // 9. Grounded Overlay Highlight
     if (result.selectedCandidate && (g.status === 'guide' || g.status === 'recover')) {
       const cand = result.selectedCandidate;
-      console.log(`  - Target Control: "${cand.text}" (Candidate ID: ${cand.id}, Confidence: ${cand.confidence.toFixed(1)}%)`);
-
       const mappingResult = convertCapturePixelRect(
         cand.pixelBbox,
         captureDims,
@@ -431,27 +501,38 @@ async function executeCoachingTurn(): Promise<boolean> {
         { x: runtimeBounds.x, y: runtimeBounds.y }
       );
 
-      if (mappingResult.valid) {
+      if (mappingResult.valid && overlayWindow && !overlayWindow.isDestroyed()) {
         const { overlayLocal } = mappingResult.value;
         overlayWindow.webContents.send('show-outline', {
           rect: overlayLocal,
           label: cand.text,
           isTest: false,
-          autoExpireMs: 8000
+          autoExpireMs: 12000
         });
-        console.log(`  - Highlight placed at logical [x: ${overlayLocal.x.toFixed(1)}, y: ${overlayLocal.y.toFixed(1)}, w: ${overlayLocal.width.toFixed(1)}, h: ${overlayLocal.height.toFixed(1)}]`);
       }
     } else {
-      console.log(`  - Highlight: None (Text-only guidance)`);
-      overlayWindow.webContents.send('clear-outline');
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('clear-outline');
+      }
     }
 
-    console.log(`[Telemetry] Latencies: Capture=${captureLatencyMs.toFixed(1)}ms | OCR=${extraction.durationMs.toFixed(1)}ms | Gemini=${result.durationMs.toFixed(1)}ms | Total=${totalDurationMs.toFixed(1)}ms`);
-    if (result.tokens) {
-      console.log(`[Token Usage] Prompt: ${result.tokens.prompt} | Candidate: ${result.tokens.candidate} | Thoughts: ${result.tokens.thoughts || 0} | Total: ${result.tokens.total}`);
+    // 10. Update Coach Window
+    let mappedUiState: 'guidance' | 'recovery' | 'complete' | 'text-only' = 'guidance';
+    if (g.status === 'recover') {
+      mappedUiState = 'recovery';
+    } else if (g.status === 'complete') {
+      mappedUiState = 'complete';
+    } else if (!result.selectedCandidate) {
+      mappedUiState = 'text-only';
     }
-    console.log(`[Budget] Used ${sessionRequestCount} of ${MAX_SESSION_REQUESTS} requests`);
-    console.log(`======================================================\n`);
+
+    sendCoachUpdate({
+      state: mappedUiState,
+      instruction: g.instruction,
+      observation: g.observation,
+      recovery: g.reason,
+      badge: g.status === 'recover' ? 'Correction' : (g.status === 'complete' ? 'Complete' : `Step ${turnIndex}`)
+    });
 
     // Update session tracking
     previousInstruction = g.instruction;
@@ -464,157 +545,14 @@ async function executeCoachingTurn(): Promise<boolean> {
       selectedCandidateText: result.selectedCandidate?.text || null
     });
 
-    if (g.status === 'complete') {
-      console.log(`*** [GOAL COMPLETE] Horizontal bar chart titled "Requests by department" verified! ***\n`);
-    }
-
     return true;
   } catch (err) {
     console.error('[AI Coach Fatal Error]', err);
-    return false;
-  } finally {
-    isInFlight = false;
-  }
-}
-
-/**
- * Standard OCR static label proof mode
- */
-async function executeCaptureToHighlight(targetLabel: string, debugCapture: boolean): Promise<boolean> {
-  if (isInFlight) {
-    console.log('[Diagnostic Lifecycle] Capture/OCR already in flight; duplicate trigger blocked.');
-    return false;
-  }
-
-  isInFlight = true;
-  const requestId = ++currentRequestId;
-  const totalStartTime = performance.now();
-
-  try {
-    console.log(`\n======================================================`);
-    console.log(`[Diagnostic Run #${requestId}] Target: "${targetLabel}"`);
-
-    if (!overlayWindow || overlayWindow.isDestroyed()) {
-      console.error('[Diagnostic Error] Overlay window not available');
-      return false;
-    }
-
-    overlayWindow.webContents.send('clear-outline');
-    overlayWindow.hide();
-
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    if (requestId !== currentRequestId) {
-      console.log(`[Diagnostic Run #${requestId}] Cancelled during DWM redraw delay.`);
-      return false;
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const runtimeBounds = primaryDisplay.bounds;
-    const scaleFactor = primaryDisplay.scaleFactor;
-
-    console.log(`[Diagnostic Environment] Display ID: ${primaryDisplay.id} | Logical: ${runtimeBounds.width}x${runtimeBounds.height} | Scale: ${scaleFactor * 100}%`);
-
-    const captureStartTime = performance.now();
-    const capturePhysicalWidth = Math.round(runtimeBounds.width * scaleFactor);
-    const capturePhysicalHeight = Math.round(runtimeBounds.height * scaleFactor);
-
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: {
-        width: capturePhysicalWidth,
-        height: capturePhysicalHeight
-      }
+    sendCoachUpdate({
+      state: 'error',
+      instruction: 'An unexpected error occurred during analysis.',
+      observation: String(err)
     });
-
-    const targetDisplayId = primaryDisplay.id.toString();
-    const matchedSource = sources.find((s) => s.display_id === targetDisplayId) || sources[0];
-
-    if (!matchedSource) {
-      console.error(`[Diagnostic Error] No desktopCapturer source matched display ID ${targetDisplayId}`);
-      return false;
-    }
-
-    const thumbnail = matchedSource.thumbnail;
-    const captureDims = thumbnail.getSize();
-    const imageBuffer = thumbnail.toPNG();
-    const captureLatencyMs = performance.now() - captureStartTime;
-
-    console.log(`[Diagnostic Capture] Captured ${captureDims.width}x${captureDims.height} px in ${captureLatencyMs.toFixed(1)} ms`);
-
-    overlayWindow.showInactive();
-    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-
-    if (captureDims.width === 0 || captureDims.height === 0 || imageBuffer.length === 0) {
-      console.warn(`[Diagnostic Capture Warning] Empty capture received (display locked/asleep).`);
-      return false;
-    }
-
-    if (debugCapture) {
-      const debugDir = path.resolve(process.cwd(), 'captures');
-      if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
-      const debugPath = path.join(debugDir, `diagnostic-capture-${Date.now()}.png`);
-      fs.writeFileSync(debugPath, imageBuffer);
-      console.log(`[Diagnostic Debug] Capture written to ${debugPath}`);
-    }
-
-    if (requestId !== currentRequestId) {
-      console.log(`[Diagnostic Run #${requestId}] Cancelled after capture.`);
-      return false;
-    }
-
-    console.log(`[Diagnostic OCR] Running local English Tesseract recognition for "${targetLabel}"...`);
-    const ocrResult = await resolveTargetInCapture(imageBuffer, targetLabel);
-    const ocrLatencyMs = ocrResult.durationMs;
-
-    if (requestId !== currentRequestId) {
-      console.log(`[Diagnostic Run #${requestId}] Cancelled during OCR processing.`);
-      return false;
-    }
-
-    const totalLatencyMs = performance.now() - totalStartTime;
-
-    if (ocrResult.status === 'unresolved') {
-      console.log(`[Diagnostic Result] Target "${targetLabel}" UNRESOLVED.`);
-      console.log(`  - Reason: ${ocrResult.reason}`);
-      console.log(`[Diagnostic Timings] Capture: ${captureLatencyMs.toFixed(1)} ms | OCR: ${ocrLatencyMs.toFixed(1)} ms | Total: ${totalLatencyMs.toFixed(1)} ms`);
-      console.log(`======================================================\n`);
-      overlayWindow.webContents.send('clear-outline');
-      return false;
-    }
-
-    const mappingResult = convertCapturePixelRect(
-      ocrResult.pixelBbox,
-      captureDims,
-      runtimeBounds,
-      { x: runtimeBounds.x, y: runtimeBounds.y }
-    );
-
-    if (!mappingResult.valid) {
-      console.error(`[Diagnostic Coordinate Error] ${mappingResult.error}`);
-      return false;
-    }
-
-    const { overlayLocal } = mappingResult.value;
-
-    console.log(`[Diagnostic Result] Target "${targetLabel}" RESOLVED!`);
-    console.log(`  - Detected Text: "${ocrResult.detectedText}" (Confidence: ${ocrResult.confidence.toFixed(1)}%)`);
-    console.log(`  - Overlay Local: [x: ${overlayLocal.x.toFixed(1)}, y: ${overlayLocal.y.toFixed(1)}, w: ${overlayLocal.width.toFixed(1)}, h: ${overlayLocal.height.toFixed(1)}]`);
-    console.log(`[Diagnostic Timings] Capture: ${captureLatencyMs.toFixed(1)} ms | OCR: ${ocrLatencyMs.toFixed(1)} ms | Total: ${totalLatencyMs.toFixed(1)} ms`);
-
-    overlayWindow.webContents.send('show-outline', {
-      rect: overlayLocal,
-      label: ocrResult.detectedText,
-      isTest: false,
-      autoExpireMs: 8000
-    });
-
-    console.log(`[Diagnostic Overlay] Highlight outline dispatched to overlay. Auto-expires in 8s. Press Ctrl+Alt+D or Escape to dismiss.`);
-    console.log(`======================================================\n`);
-    return true;
-  } catch (err) {
-    console.error('[Diagnostic Fatal Error]', err);
     return false;
   } finally {
     isInFlight = false;
@@ -624,99 +562,97 @@ async function executeCaptureToHighlight(targetLabel: string, debugCapture: bool
 /**
  * Registers global keyboard shortcuts
  */
-function registerShortcuts(targetLabel: string, debugCapture: boolean, testOverlay: boolean, coach: boolean): void {
-  // Capture on demand: Ctrl+Alt+U
-  const captureSuccess = globalShortcut.register('CommandOrControl+Alt+U', () => {
-    if (testOverlay) {
-      executeTestOverlay();
-    } else if (coach) {
-      executeCoachingTurn();
-    } else {
-      executeCaptureToHighlight(targetLabel, debugCapture);
-    }
+function registerShortcuts(): void {
+  globalShortcut.register('CommandOrControl+Alt+U', () => {
+    executeCoachingTurn();
   });
 
-  if (!captureSuccess) {
-    console.error('[Shortcut Conflict] Failed to register Ctrl+Alt+U: shortcut already registered by another application.');
-  } else {
-    console.log('[Shortcut Registered] Ctrl+Alt+U (Trigger Turn / Capture on demand)');
-  }
-
-  // Dismiss on demand: Ctrl+Alt+D
-  const dismissSuccess = globalShortcut.register('CommandOrControl+Alt+D', handleDismiss);
-  if (!dismissSuccess) {
-    console.error('[Shortcut Conflict] Failed to register Ctrl+Alt+D: shortcut conflict.');
-  } else {
-    console.log('[Shortcut Registered] Ctrl+Alt+D (Dismiss outline & Invalidate pending)');
-  }
-
-  // Reset coaching session: Ctrl+Alt+R
-  const resetSuccess = globalShortcut.register('CommandOrControl+Alt+R', handleSessionReset);
-  if (resetSuccess) {
-    console.log('[Shortcut Registered] Ctrl+Alt+R (Reset coaching session & 12-request budget)');
-  }
-
-  // Escape to dismiss
+  globalShortcut.register('CommandOrControl+Alt+D', handleDismiss);
+  globalShortcut.register('CommandOrControl+Alt+R', handleSessionReset);
   globalShortcut.register('Escape', handleDismiss);
 }
 
-// IPC Telemetry Handlers
-ipcMain.on('renderer-preload-ready', () => {
-  console.log('[Renderer Telemetry] Preload script executed and contextBridge initialized successfully.');
+// IPC Handlers
+ipcMain.on('start-coaching', (_event, data) => {
+  if (data?.goal) {
+    coachingGoal = data.goal;
+  }
+  if (launchWindow && !launchWindow.isDestroyed()) {
+    launchWindow.hide();
+  }
+  if (!coachWindow) {
+    coachWindow = createCoachWindow(cliOptions.mockUi);
+  } else {
+    coachWindow.show();
+  }
+  if (!overlayWindow) {
+    overlayWindow = createOverlayWindow();
+  } else {
+    overlayWindow.showInactive();
+  }
 });
 
-ipcMain.on('renderer-dom-ready', () => {
-  console.log('[Renderer Telemetry] DOM loaded and overlay event listeners attached.');
+ipcMain.handle('get-target-info', async () => {
+  return getForegroundWindowInfo();
 });
 
-ipcMain.on('renderer-error', (_event, err) => {
-  console.error('[Renderer Telemetry Error]', err);
+ipcMain.on('trigger-check', () => {
+  executeCoachingTurn();
 });
 
-ipcMain.on('outline-applied-ack', (_event, data) => {
-  console.log(`[Renderer Telemetry Ack] Outline applied to DOM:`);
-  console.log(`  - Style Dimensions: left=${data.appliedLeft}, top=${data.appliedTop}, width=${data.appliedWidth}, height=${data.appliedHeight}`);
-  console.log(`  - Computed DOM Rect: x=${data.computedBounds.x}, y=${data.computedBounds.y}, width=${data.computedBounds.width}, height=${data.computedBounds.height}`);
-  console.log(`  - Computed Styles: display=${data.display}, visibility=${data.visibility}, opacity=${data.opacity}, zIndex=${data.zIndex}`);
-  console.log(`  [Notice: DOM acknowledgement confirms CSS styling; physical display visibility requires visual verification.]`);
+ipcMain.on('pause-session', () => {
+  isPaused = true;
+  handleDismiss();
+  sendCoachUpdate({ state: 'paused' });
 });
 
-// App lifecycle
+ipcMain.on('resume-session', () => {
+  isPaused = false;
+  sendCoachUpdate({ state: 'ready' });
+});
+
+ipcMain.on('stop-session', () => {
+  isPaused = false;
+  handleDismiss();
+  if (coachWindow && !coachWindow.isDestroyed()) coachWindow.hide();
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
+  if (launchWindow && !launchWindow.isDestroyed()) launchWindow.show();
+});
+
+ipcMain.on('reset-session', () => {
+  handleSessionReset();
+});
+
+ipcMain.on('window-minimize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.minimize();
+});
+
+ipcMain.on('window-close', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.close();
+});
+
+// App Lifecycle
 app.whenReady().then(async () => {
-  console.log(`\n======================================================`);
-  console.log(`Unstuck - AI Desktop Coach Engineering Diagnostic`);
-  let modeName = `LIVE TARGET PROOF ("${cliOptions.target}")`;
-  if (cliOptions.testOverlay) modeName = 'OVERLAY-ONLY VISIBILITY DIAGNOSTIC';
-  if (cliOptions.coach) modeName = 'AI COACHING LOOP (gemini-3.1-flash-lite)';
-  console.log(`Mode: ${modeName}`);
-  console.log(`Goal: "${COACHING_GOAL}"`);
-  console.log(`API Key: ${GEMINI_API_KEY ? 'Configured locally' : 'MISSING (Check .env)'}`);
-  console.log(`======================================================`);
-
-  overlayWindow = createOverlayWindow();
-
-  registerShortcuts(cliOptions.target, cliOptions.debugCapture, cliOptions.testOverlay, cliOptions.coach);
+  registerShortcuts();
 
   screen.on('display-metrics-changed', () => {
-    console.log('[Diagnostic Lifecycle] Display metrics changed; invalidating active outline.');
     handleDismiss();
   });
 
-  overlayWindow.webContents.once('did-finish-load', async () => {
-    setTimeout(async () => {
-      if (cliOptions.testOverlay) {
-        executeTestOverlay();
-      } else if (cliOptions.coach) {
-        console.log(`\n[Coach Ready] Focus LibreOffice Calc and press Ctrl+Alt+U to trigger initial guidance.\n`);
-      } else {
-        const success = await executeCaptureToHighlight(cliOptions.target, cliOptions.debugCapture);
-        if (cliOptions.runOnce) {
-          console.log(`[Diagnostic Run-Once] Exiting in 3 seconds (result: ${success ? 'RESOLVED' : 'UNRESOLVED'})...`);
-          setTimeout(() => app.quit(), 3000);
-        }
-      }
-    }, 1000);
-  });
+  if (cliOptions.mockUi) {
+    // Launch directly into Coach Window with Mock QA Bar
+    coachWindow = createCoachWindow(true);
+    overlayWindow = createOverlayWindow();
+  } else if (cliOptions.coach) {
+    // Launch directly into Coach mode
+    coachWindow = createCoachWindow(false);
+    overlayWindow = createOverlayWindow();
+  } else {
+    // Standard product launch
+    launchWindow = createLaunchWindow();
+  }
 });
 
 app.on('will-quit', async () => {

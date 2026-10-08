@@ -9,12 +9,14 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "start": "electron dist/electron/main.js",
+    "mock-ui": "electron dist/electron/main.js --mock-ui",
+    "coach": "electron dist/electron/main.js --coach",
+    "proof": "electron dist/electron/main.js",
     "typecheck": "tsc --noEmit",
     "test": "node --test dist/tests/*.unit.test.js",
-    "test:integration": "node --test dist/tests/*.integration.test.js",
-    "proof": "tsc && electron dist/electron/main.js",
-    "coach": "tsc && electron dist/electron/main.js --coach"
+    "test:integration": "node --test dist/tests/*.integration.test.js"
   },
   "bugs": {
     "url": "https://github.com/akashgamerz6575-spec/Unstuck/issues"
