@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unstuck Overlay Diagnostic</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      background: transparent !important;
+      overflow: hidden;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #target-outline {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      /* High-contrast outline with subtle fill tint */
+      border: 3px solid #00FF66;
+      border-radius: 4px;
+      background: rgba(0, 255, 102, 0.12);
+      box-shadow: 0 0 12px rgba(0, 255, 102, 0.9), inset 0 0 8px rgba(0, 255, 102, 0.3);
+      z-index: 999999;
+    }
+
+    #target-badge {
+      position: absolute;
+      top: -24px;
+      left: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: #00FF66;
+      background: rgba(10, 20, 15, 0.92);
+      border: 1px solid #00FF66;
+      border-radius: 3px;
+      padding: 2px 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      letter-spacing: 0.4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="target-outline">
+    <div id="target-badge"></div>
+  </div>
+
+  <script>
+    (function () {
+      const outlineEl = document.getElementById('target-outline');
+      const badgeEl = document.getElementById('target-badge');
+      let expireTimer = null;
+      const PADDING = 4;
+
+      window.onerror = function (msg, url, line, col, error) {
+        if (window.unstuckOverlay && window.unstuckOverlay.reportError) {
+          window.unstuckOverlay.reportError({ msg, url, line, col, error: String(error) });
+        }
+      };
+
+      function clearOutline() {
+        if (expireTimer) {
+          clearTimeout(expireTimer);
+          expireTimer = null;
+        }
+        outlineEl.style.display = 'none';
+      }
+
+      function showOutline(data) {
+        if (!data || !data.rect) return;
+        clearOutline();
+
+        const { x, y, width, height } = data.rect;
+        const label = data.label || '';
+        const isTest = Boolean(data.isTest);
+        const autoExpireMs = typeof data.autoExpireMs === 'number' ? data.autoExpireMs : 8000;
+
+        // Apply padding around detected word (none for synthetic test box)
+        const pad = isTest ? 0 : PADDING;
+        const paddedX = Math.max(0, x - pad);
+        const paddedY = Math.max(0, y - pad);
+        const paddedWidth = width + (pad * 2);
+        const paddedHeight = height + (pad * 2);
+
+        outlineEl.style.left = paddedX + 'px';
+        outlineEl.style.top = paddedY + 'px';
+        outlineEl.style.width = paddedWidth + 'px';
+        outlineEl.style.height = paddedHeight + 'px';
+        outlineEl.style.display = 'block';
+
+        badgeEl.textContent = label ? (isTest ? `[TEST RECTANGLE] ${label}` : `Target: ${label}`) : '';
+        badgeEl.style.display = label ? 'block' : 'none';
+
+        // Read computed DOM geometry to send structured telemetry acknowledgement
+        if (window.unstuckOverlay && window.unstuckOverlay.sendAck) {
+          const domRect = outlineEl.getBoundingClientRect();
+          const computed = window.getComputedStyle(outlineEl);
+          window.unstuckOverlay.sendAck({
+            appliedLeft: outlineEl.style.left,
+            appliedTop: outlineEl.style.top,
+            appliedWidth: outlineEl.style.width,
+            appliedHeight: outlineEl.style.height,
+            computedBounds: {
+              x: domRect.x,
+              y: domRect.y,
+              width: domRect.width,
+              height: domRect.height
+            },
+            display: computed.display,
+            visibility: computed.visibility,
+            opacity: computed.opacity,
+            zIndex: computed.zIndex
+          });
+        }
+
+        if (autoExpireMs > 0) {
+          expireTimer = setTimeout(() => {
+            clearOutline();
+          }, autoExpireMs);
+        }
+      }
+
+      if (window.unstuckOverlay) {
+        window.unstuckOverlay.onShowOutline(showOutline);
+        window.unstuckOverlay.onClearOutline(clearOutline);
+        window.unstuckOverlay.sendReady();
+      }
+    })();
+  </script>
+</body>
+</html>

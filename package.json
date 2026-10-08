@@ -1,0 +1,31 @@
+{
+  "name": "unstuck",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test dist/tests/*.unit.test.js",
+    "test:integration": "node --test dist/tests/*.integration.test.js",
+    "proof": "tsc && electron dist/electron/main.js",
+    "coach": "tsc && electron dist/electron/main.js --coach"
+  },
+  "bugs": {
+    "url": "https://github.com/akashgamerz6575-spec/Unstuck/issues"
+  },
+  "homepage": "https://github.com/akashgamerz6575-spec/Unstuck#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "electron": "^44.7.0",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "tesseract.js": "^7.0.0"
+  }
+}
