@@ -41,8 +41,10 @@ describe('Goal Invalidation & Stale Chart Completion Regression Tests', () => {
   it('provides explicit cell formatting guidance rules without coordinate hallucination', () => {
     const prompt = buildWebSystemPrompt(customFormattingGoal);
     assert.match(prompt, /Cell Highlighting & Formatting Goals/);
-    assert.match(prompt, /Spreadsheet cell grid cells do not have button candidate IDs/);
-    assert.match(prompt, /return selectedCandidateId: null and provide concise, clear textual guidance without hallucinating coordinates/);
+    assert.match(prompt, /Spreadsheet grid cells do not have OCR candidate buttons/);
+    assert.match(prompt, /Return selectedCandidateId: null/);
+    assert.match(prompt, /Methodical Grid & Coordinate Inspection/);
+    assert.match(prompt, /Cell Identification Uncertainty Guard/);
   });
 
   it('validates model response when uncertain status is returned for ambiguous input', () => {

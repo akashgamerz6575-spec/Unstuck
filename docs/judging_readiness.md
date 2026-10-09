@@ -27,40 +27,70 @@
 
 ---
 
-## 2. Milestone Focus: Changed-Goal Root Cause & Resolution
+## 2. Milestone Focus: Changed-Goal Root Cause & Verified 3-Column Execution
 
-### Observed Failure Mode
-When the user restarted the application or entered a custom goal (e.g., *"Simplify all three columns and highlight the highest number"*), Unstuck prematurely responded that the horizontal bar chart goal was already achieved.
+### A. Failure Mode & Prior False-Positive Disclosure
+In earlier testing, when Akash restarted the application and requested a custom goal (*"Simplify all three columns and highlight the highest number"*), Unstuck prematurely responded that the horizontal bar chart goal was already achieved.
 
-### Root Cause Analysis (Evidence-Based Trace)
-1. **Hardcoded System Prompt:** In both `server/gemini-service.ts` and `electron/gemini-coach.ts`, a static `const SYSTEM_PROMPT` had baked-in instructions declaring that the user's tested goal was *always* to create a horizontal bar chart and that `status="complete"` must be declared whenever a horizontal bar chart was visible.
-2. **Missing Session & Stale State Invalidation:** Electron's coaching history (`coachingHistory`) and the web client's session state were not cleared on user goal modifications or session restarts, allowing previous chart completion assessments to leak into the prompt payload.
-3. **Ambiguous Goal Handling:** Vague prompts like *"simplify all three columns"* had no explicit instruction for Gemini to request clarification, leading to unpredictable classification.
+In our immediate prior progress report, an initial test of *"Highlight the largest numeric value in B2:C5 with a yellow background"* was mistakenly marked as "Pass" because the JSON response schema was valid and Gemini did not mark the horizontal bar chart complete. **However, that report contained a false-positive verification claim:**
+- The screenshot evaluated in that run (`calc-clean-bar-chart.png`) only had two columns of data (`Department`, `Requests`), with Column C completely empty.
+- Gemini reported that "cell C3 contains 68", which was factually wrong (68 was in B3, and C3 was empty).
+- A valid JSON schema was conflated with an accurate domain result. Chart interference was mitigated, but numeric value identification and formatting verification had **not** yet been proven.
 
-### Implemented Fix
-1. **Dynamic Goal-Aware System Prompt (`buildSystemPrompt(goal)`):**
-   - **Preset Chart Mode:** Follows standard 4-step Chart Wizard guidance and validates horizontal bar chart completion.
-   - **Custom Goal Mode:** Explicitly restricts chart completion rules: *"An existing chart, plot, or graphic on the spreadsheet MUST NEVER cause status='complete' for this goal unless the user explicitly requested a chart."*
-   - **Ambiguous Clarification:** Instructs Gemini to return `status: "uncertain"` with an explicit clarification request whenever phrasing is underspecified or conflicts with visible sheet geometry.
-   - **Spreadsheet Formatting Tasks:** Instructs Gemini to inspect visible cell contents and guide cell selection followed by toolbar formatting actions. Explicitly notes that individual grid cells lack OCR candidate tokens, so Gemini emits `selectedCandidateId: null` to prevent coordinate hallucinations while providing clear textual guidance.
-2. **Strict State Invalidation:**
-   - Electron `ipcMain.on('start-coaching')` now resets `coachingHistory = []`, `previousInstruction = null`, `currentStepNumber = 1`, and clears all visible overlay brackets.
-   - Web companion `app.ts` clears guidance cards, target highlights, previous instructions, and resets the backend session via `/api/session/reset` immediately when the user alters the goal text or uploads a new screenshot.
-3. **Automated Regression Coverage:**
-   - Added `tests/goal-invalidation.unit.test.ts` (7 tests covering prompt construction, chart isolation, ambiguous clarification contracts, null-candidate formatting, and session reset invalidation). All 83 unit tests passing across 23 suites.
+### B. Investigation: Why Cell Addressing Failed on 2-Column Fixtures
+1. **Multimodal Column Misattribution:** In `calc-clean-bar-chart.png`, the active spreadsheet cell was `C8`, causing the column header `C` to be highlighted in blue and the formula Name Box to read `C8`. When Gemini was asked to evaluate range `B2:C5` on an image where Column C was empty, the visual salience of the blue `C` header coupled with value 68 in row 3 caused Gemini to hallucinate that 68 was in `C3`.
+2. **Missing Grid Traversal Rules:** The system prompt previously instructed Gemini to "visually inspect cells" without giving strict column/row coordinate reading rules or an explicit uncertainty guard.
+3. **Prompt Safeguards Implemented:**
+   - **Methodical Coordinate Reading:** Instructs Gemini to trace up to column letters (A, B, C...) regardless of which cell/header is highlighted, read row index numbers (1, 2, 3...) along the left margin, and check each cell in range `B2:C5` individually.
+   - **Uncertainty Guard:** If cell coordinates or text values cannot be determined with high confidence, Gemini is strictly instructed to return `status: "uncertain"` and `assessment: "uncertain"` rather than inventing an address.
+   - **Formatting Verification Rule:** `status: "complete"` requires visible proof of the requested formatting (e.g. yellow cell fill) on the target cell. Merely seeing the target cell, the number, or an existing chart is never evidence of completion.
 
-### Live Verification Results (Google Gemini API — 2 Calls Used)
-- **Test 1 (Ambiguous Goal: *"Simplify all three columns and highlight the highest number"*):**
-  - **Status:** `uncertain`
-  - **Assessment:** `uncertain`
-  - **Instruction:** *"Please clarify what you mean by 'simplify all three columns', as only columns A and B contain data. Additionally, specify if you want to highlight the highest number in a specific column or across the whole table."*
-  - **Target Candidate:** `null` (no guessed highlight).
-- **Test 2 (Unambiguous Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."* against a sheet with an existing completed bar chart):**
-  - **Status:** `guide`
-  - **Assessment:** `not_started`
-  - **Instruction:** *"Click cell C3 (which contains the largest value, 68) to select it, then click the 'Background Color' tool on the toolbar to apply a yellow highlight."*
-  - **Target Candidate:** `null` (safe grid cell guidance without hallucinated bounding box).
-  - **Completion Check:** The presence of the existing horizontal bar chart did **not** trigger premature completion.
+### C. Verified Real-World 3-Column Execution (Live Gemini API Calls)
+We tested the actual three-column scenario on a fresh Calc fixture (`calc-three-column-unformatted.png`) with an existing horizontal bar chart visible to test chart isolation:
+```
+Department | Requests | Rate
+Library    | 42       | 56
+IT Desk    | 68       | 26
+Accounts   | 31       | 28000
+Admissions | 55       | 46000
+```
+Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."* (Expected target: C5 containing 46000).
+
+#### Turn 1: Initial Guidance on Unformatted Grid
+- **Input:** `fixtures/calc-three-column-unformatted.png`
+- **Result:**
+  ```json
+  {
+    "assessment": "not_started",
+    "status": "guide",
+    "observation": "I can see the values in cells B2:C5. The largest numeric value in this range is 46000, located in cell C5.",
+    "instruction": "Please click on cell C5 (which contains the value 46000), then click the 'Background Color' icon in the toolbar (it looks like a paint bucket) and select yellow to highlight it.",
+    "selectedCandidateId": null,
+    "expectedOutcome": "Cell C5 should have a yellow background."
+  }
+  ```
+- **Outcome:** **Verified Correct.** Gemini correctly traversed the columns, identified 46000 in C5 (not C3), guided cell selection and toolbar Background Color, emitted `selectedCandidateId: null` (no fake outline), and was not distracted by the visible bar chart.
+
+#### Turn 2: Progress Verification on Formatted Grid
+- **Input:** `fixtures/calc-three-column-formatted.png` (cell C5 filled with yellow `#FFFF00`)
+- **Context:** Turn 1 history preserved; `previousInstruction` passed to evaluate progress.
+- **Result:**
+  ```json
+  {
+    "assessment": "expected",
+    "status": "complete",
+    "observation": "Cell C5, which contains the value 46000, is highlighted with a yellow background.",
+    "instruction": "Great job, the largest numeric value in the range B2:C5 has been correctly identified and highlighted.",
+    "selectedCandidateId": null,
+    "expectedOutcome": "The largest numeric value (46000 in cell C5) is highlighted with a yellow background."
+  }
+  ```
+- **Outcome:** **Verified Correct.** Gemini detected the visible yellow fill on C5 and confirmed completion.
+
+### D. Session Continuity & Anti-Race Protection
+1. **Preserving History on Fresh Screenshots:** In `web/app.ts`, uploading or replacing a screenshot under the *same* goal clears stale highlight overlays (`clearHighlight()`), but preserves `this.history` and `this.lastGuidance`. This enables multi-turn verification where Gemini checks if its previous instruction was completed.
+2. **Goal Invalidation:** Changing the goal text or clicking Reset immediately flushes `history = []`, `lastGuidance = null`, resets step counts, and triggers `/api/session/reset`.
+3. **Anti-Race Protection:** All reset operations store an in-flight `pendingResetPromise`. Any subsequent analysis call (`runAnalysis()`) strictly awaits `this.pendingResetPromise` before issuing `/api/check`, eliminating race conditions between session reset and inference.
 
 ---
 

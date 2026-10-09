@@ -309,6 +309,7 @@ class UnstuckWebApp {
   private goalClarificationHint = document.getElementById('goal-clarification-hint') as HTMLElement | null;
   private currentGoal: string = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
   private readonly defaultGoal: string = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
+  private pendingResetPromise: Promise<void> | null = null;
 
   private statusBadge = document.getElementById('status-badge') as HTMLElement;
   private busyBox = document.getElementById('busy-box') as HTMLElement;
@@ -474,12 +475,16 @@ class UnstuckWebApp {
       this.currentStepNumber = 1;
       this.clearHighlight();
 
-      // Reset server session turn counters
-      fetch('/api/session/reset', {
+      // Reset server session turn counters without race
+      this.pendingResetPromise = fetch('/api/session/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: this.sessionId })
-      }).catch(() => {});
+      }).then(() => {
+        this.pendingResetPromise = null;
+      }).catch(() => {
+        this.pendingResetPromise = null;
+      });
 
       if (this.imageBase64) {
         this.setState('preview');
@@ -583,10 +588,8 @@ class UnstuckWebApp {
     }
     this.imageMetaBadge.textContent = metaLabel;
 
-    // Clear previous highlight and stale guidance on new image load
+    // Clear previous highlight on new image load, but preserve task history and last guidance for step verification
     this.clearHighlight();
-    this.lastGuidance = null;
-    this.history = [];
 
     if (this.state === 'ready' || this.state === 'complete' || this.state === 'error' || this.state === 'guidance' || this.state === 'recovery' || this.state === 'uncertain') {
       this.setState('preview');
@@ -673,6 +676,11 @@ class UnstuckWebApp {
 
   private async runAnalysis(): Promise<void> {
     if (this.state === 'analysing') return;
+
+    // Await any pending reset to guarantee no race between session reset and check
+    if (this.pendingResetPromise) {
+      await this.pendingResetPromise;
+    }
 
     this.setState('analysing');
     const requestId = ++this.inFlightRequestId;
@@ -832,21 +840,24 @@ class UnstuckWebApp {
   }
 
   private async resetSession(): Promise<void> {
-    try {
-      await fetch('/api/session/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: this.sessionId })
-      });
-    } catch {
-      // Ignore network reset errors
-    }
-
+    this.inFlightRequestId++;
     this.checkCount = 0;
     this.currentStepNumber = 1;
     this.history = [];
     this.lastGuidance = null;
     this.clearHighlight();
+
+    this.pendingResetPromise = fetch('/api/session/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: this.sessionId })
+    }).then(() => {
+      this.pendingResetPromise = null;
+    }).catch(() => {
+      this.pendingResetPromise = null;
+    });
+
+    await this.pendingResetPromise;
     this.updateBudgetDisplay();
 
     if (this.imageBase64) {

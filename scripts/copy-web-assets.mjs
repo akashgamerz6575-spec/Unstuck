@@ -34,7 +34,9 @@ const fixtureFiles = [
   'calc-clean-unselected.png',
   'calc-clean-selected.png',
   'calc-clean-pie-chart.png',
-  'calc-clean-bar-chart.png'
+  'calc-clean-bar-chart.png',
+  'calc-three-column-unformatted.png',
+  'calc-three-column-formatted.png'
 ];
 
 for (const file of fixtureFiles) {

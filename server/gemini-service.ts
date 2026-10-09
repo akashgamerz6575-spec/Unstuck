@@ -116,12 +116,28 @@ CUSTOM GOAL EVALUATION RULES:
   * In "instruction", politely explain what is ambiguous and request clarification from the user on what specific formatting, formula, or action is desired.
   * Set selectedCandidateId: null.
 - Cell Highlighting & Formatting Goals (e.g. "Highlight the largest numeric value in B2:C5 with a yellow background"):
-  * Visually inspect the visible table / cells in the screenshot to find the data values matching the condition.
-  * If the cell already visibly has the requested formatting (e.g. yellow background fill), return status="complete" with assessment="expected".
-  * If the cell is NOT yet formatted:
-    - Return status="guide".
-    - Instruct the user to select that specific cell (or range) and use the toolbar (e.g. "Fill Color" or "Background Color") to apply the formatting.
-    - Grounding limitation: Spreadsheet cell grid cells do not have button candidate IDs. If a matching toolbar formatting button (e.g. "Color", "Fill", "Background") is present in the visible OCR candidate list, you may select its ID. If the action is clicking or dragging inside the spreadsheet grid itself, return selectedCandidateId: null and provide concise, clear textual guidance without hallucinating coordinates.`;
+  * Methodical Grid & Coordinate Inspection:
+    1. Identify column letters by tracing up to the column header bar (A, B, C, D...):
+       - Column A is the leftmost data column.
+       - Column B is the second data column.
+       - Column C is the third data column.
+       - Note: Do NOT be misled by whichever column header or Name Box happens to be active or highlighted in blue from previous clicks.
+    2. Identify row numbers by reading the row header index numbers (1, 2, 3, 4, 5...) along the left margin.
+    3. For range evaluations like B2:C5, inspect every cell within the specified range:
+       - Column B: B2, B3, B4, B5
+       - Column C: C2, C3, C4, C5
+       Compare all numeric values across both columns B and C within these rows to identify the exact cell matching the criteria (e.g. maximum numeric value).
+    4. Cell Identification Uncertainty Guard:
+       - If the numbers or column/row coordinates cannot be read with high confidence from the screenshot, DO NOT guess or invent a cell address. Return status="uncertain" and assessment="uncertain", explaining what could not be determined.
+    5. Formatting Verification & Progress:
+       - If the target cell DOES NOT yet have the requested formatting (e.g. yellow background color / cell fill is not present on the cell):
+         * Return status="guide".
+         * Explicitly identify the target cell coordinate and value (e.g. "Click cell C5 (46000) to select it, then apply a yellow background color using the toolbar").
+         * Selected Candidate: Spreadsheet grid cells do not have OCR candidate buttons. Return selectedCandidateId: null (or the toolbar Background Color button ID if visible in the candidates list). Never hallucinate an ID.
+       - If the target cell ALREADY visibly has the requested formatting (e.g. yellow fill is clearly applied to the target cell):
+         * Return status="complete" with assessment="expected".
+         * Explicitly verify that the requested visual formatting is present on the target cell.
+       - CRITICAL RULE: Merely seeing the target cell, seeing the numeric value, or seeing an existing chart/graphic on the sheet is NEVER evidence of completion! Completion requires visible proof of the requested formatting on the target cell.`;
   }
 
   return `You are Unstuck, an interactive web companion and desktop AI coach guiding beginners through LibreOffice Calc tasks.
