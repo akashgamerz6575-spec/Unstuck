@@ -22,7 +22,7 @@ import { getForegroundWindowInfo } from './window-scoping.js';
 import { extractOcrCandidates } from './candidate-extractor.js';
 import { queryGeminiCoach, CoachingTurnHistory } from './gemini-coach.js';
 import { calculateWindowCrop } from '../shared/crop-geometry.js';
-import { defaultApiBudget } from '../shared/api-budget.js';
+import { defaultApiBudget, defaultSessionBudget } from '../shared/api-budget.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -116,10 +116,10 @@ let overlayWindow: BrowserWindow | null = null;
 let isInFlight = false;
 let currentRequestId = 0;
 let isPaused = false;
+let currentStepNumber = 1;
 let coachingGoal = 'Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.';
 let coachingHistory: CoachingTurnHistory[] = [];
 let previousInstruction: string | null = null;
-let previousCandidateSig: string | null = null;
 
 /**
  * Creates the Launch Window (1040x700 resizable)
@@ -188,15 +188,14 @@ function createCoachWindow(isMockMode = false): BrowserWindow {
     }
   });
 
-  const queryUrl = isMockMode ? `${coachHtmlPath}?mock=true` : coachHtmlPath;
-  win.loadFile(queryUrl);
+  win.loadFile(coachHtmlPath);
 
   win.once('ready-to-show', () => {
     win.show();
     sendCoachUpdate({
       state: 'ready',
       goal: coachingGoal,
-      budget: defaultApiBudget.getState().max - defaultApiBudget.getState().used,
+      budget: defaultSessionBudget.getRemaining(),
       isMockMode
     });
   });
@@ -256,7 +255,7 @@ function sendCoachUpdate(data: {
   if (coachWindow && !coachWindow.isDestroyed()) {
     coachWindow.webContents.send('coach-state-update', {
       ...data,
-      budget: data.budget !== undefined ? data.budget : (defaultApiBudget.getState().max - defaultApiBudget.getState().used)
+      budget: data.budget !== undefined ? data.budget : defaultSessionBudget.getRemaining()
     });
   }
 }
@@ -273,16 +272,17 @@ function handleDismiss(): void {
 }
 
 /**
- * Resets coaching session state and budget counter.
+ * Resets coaching session state and in-memory session budget counter.
+ * Note: Never resets or overwrites the persistent automated build budget in .api_budget.json.
  */
 function handleSessionReset(): void {
   currentRequestId++;
-  defaultApiBudget.resetBudget();
+  defaultSessionBudget.resetSession();
   coachingHistory = [];
   previousInstruction = null;
-  previousCandidateSig = null;
+  currentStepNumber = 1;
   isPaused = false;
-  console.log(`[SESSION RESET] Coaching history and 12-request budget reset.`);
+  console.log(`[SESSION RESET] Coaching session and in-memory budget reset.`);
 
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('clear-outline');
@@ -292,7 +292,7 @@ function handleSessionReset(): void {
     state: 'ready',
     instruction: 'Session reset. Focus LibreOffice Calc and click Check to begin.',
     observation: 'Ready for initial check.',
-    budget: 12
+    budget: defaultSessionBudget.getRemaining()
   });
 }
 
@@ -310,13 +310,13 @@ async function executeCoachingTurn(): Promise<boolean> {
     return false;
   }
 
-  // Budget allowance check
-  const allowance = defaultApiBudget.checkAllowance();
+  // Session budget allowance check
+  const allowance = defaultSessionBudget.checkAllowance();
   if (!allowance.allowed) {
     console.warn(`[Budget Enforcement] ${allowance.reason}`);
     sendCoachUpdate({
       state: 'error',
-      instruction: allowance.reason || 'API Limit reached.',
+      instruction: allowance.reason || 'Session check limit reached.',
       observation: 'Please wait or reset session (Ctrl+Alt+R).'
     });
     return false;
@@ -449,33 +449,22 @@ async function executeCoachingTurn(): Promise<boolean> {
       }
     }
 
-    if (requestId !== currentRequestId) return false;
+    if (requestId !== currentRequestId || isPaused) return false;
 
-    // 7. Detect unchanged screen state
-    const currentCandidateSig = extraction.candidates.map(c => c.text).sort().join('|');
-    const isScreenUnchanged = previousCandidateSig !== null && currentCandidateSig === previousCandidateSig;
-
-    // 8. Query Gemini Coach
+    // 7. Query Gemini Coach with fresh screenshot & candidates
     const result = await queryGeminiCoach({
       apiKey: GEMINI_API_KEY,
       imageBuffer: targetImageBuffer,
       goal: coachingGoal,
       previousInstruction,
       history: coachingHistory,
-      candidates: extraction.candidates,
-      isScreenUnchanged
+      candidates: extraction.candidates
     });
 
-    // Record request in persistent budget
-    defaultApiBudget.recordRequest({
-      model: 'gemini-3.1-flash-lite',
-      status: result.success ? 'success' : 'error',
-      latencyMs: result.durationMs,
-      statusCode: result.statusCode,
-      notes: result.error
-    });
+    // Record request in session budget
+    defaultSessionBudget.recordRequest();
 
-    if (requestId !== currentRequestId) return false;
+    if (requestId !== currentRequestId || isPaused) return false;
 
     const totalDurationMs = performance.now() - totalStartTime;
 
@@ -491,7 +480,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     const g = result.guidance;
 
-    // 9. Grounded Overlay Highlight
+    // 8. Grounded Overlay Highlight
     if (result.selectedCandidate && (g.status === 'guide' || g.status === 'recover')) {
       const cand = result.selectedCandidate;
       const mappingResult = convertCapturePixelRect(
@@ -516,13 +505,29 @@ async function executeCoachingTurn(): Promise<boolean> {
       }
     }
 
+    // 9. Update Step Progression (do not advance on repeated/unperformed actions)
+    if (g.status === 'guide') {
+      if (previousInstruction && g.instruction !== previousInstruction && g.assessment === 'expected') {
+        currentStepNumber += 1;
+      }
+    }
+
+    let badgeText = `Step ${currentStepNumber}`;
+    if (g.status === 'recover') {
+      badgeText = 'Correction';
+    } else if (g.status === 'complete') {
+      badgeText = 'Complete';
+    } else if (g.status === 'uncertain') {
+      badgeText = 'Uncertain';
+    }
+
     // 10. Update Coach Window
     let mappedUiState: 'guidance' | 'recovery' | 'complete' | 'text-only' = 'guidance';
     if (g.status === 'recover') {
       mappedUiState = 'recovery';
     } else if (g.status === 'complete') {
       mappedUiState = 'complete';
-    } else if (!result.selectedCandidate) {
+    } else if (g.status === 'uncertain' || !result.selectedCandidate) {
       mappedUiState = 'text-only';
     }
 
@@ -531,14 +536,13 @@ async function executeCoachingTurn(): Promise<boolean> {
       instruction: g.instruction,
       observation: g.observation,
       recovery: g.reason,
-      badge: g.status === 'recover' ? 'Correction' : (g.status === 'complete' ? 'Complete' : `Step ${turnIndex}`)
+      badge: badgeText
     });
 
     // Update session tracking
     previousInstruction = g.instruction;
-    previousCandidateSig = currentCandidateSig;
     coachingHistory.push({
-      turnNumber: turnIndex,
+      turnNumber: currentStepNumber,
       instruction: g.instruction,
       assessment: g.assessment,
       status: g.status,

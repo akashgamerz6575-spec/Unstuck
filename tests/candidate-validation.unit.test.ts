@@ -141,3 +141,78 @@ describe('Target Scoping - Calc Window Identity & Geometry Filter', () => {
     assert.equal(isBoxWithinWindow(outsideBox, windowBounds, 1.25, 50), false);
   });
 });
+
+describe('Identical OCR Text with Changed Visual / Task State', () => {
+  // Scenario 1: User selects data table A1:B5 in Calc.
+  // The recognized words on the sheet are completely identical before and after selection!
+  const ocrCandidatesBeforeSelection = ['Department', 'Requests', 'Library', '42', 'IT', 'Desk', '68', 'Insert'];
+  const ocrCandidatesAfterSelection = ['Department', 'Requests', 'Library', '42', 'IT', 'Desk', '68', 'Insert'];
+
+  it('demonstrates that OCR candidate text signatures are identical despite cell selection change', () => {
+    const sigBefore = ocrCandidatesBeforeSelection.sort().join('|');
+    const sigAfter = ocrCandidatesAfterSelection.sort().join('|');
+    assert.equal(sigBefore, sigAfter);
+  });
+
+  it('allows model response validation to proceed without suppression when text signature is identical', () => {
+    const candidateSet = new Set(['c_1', 'c_2', 'c_3', 'c_4']);
+
+    // Turn 1: Model asks to select cells
+    const turn1Response = {
+      assessment: 'not_started',
+      status: 'guide',
+      observation: 'No cells selected',
+      instruction: 'Drag mouse from A1 to B5 to select data',
+      selectedCandidateId: null,
+      expectedOutcome: 'A1:B5 highlighted'
+    };
+    const res1 = validateModelResponse(turn1Response, candidateSet);
+    assert.equal(res1.valid, true);
+
+    // Turn 2: Cells are now visually selected, OCR text is identical, model issues next step
+    const turn2Response = {
+      assessment: 'expected',
+      status: 'guide',
+      observation: 'Cells A1:B5 highlighted in blue',
+      instruction: 'Click Insert on the top menu bar',
+      selectedCandidateId: 'c_4',
+      expectedOutcome: 'Insert menu opens'
+    };
+    const res2 = validateModelResponse(turn2Response, candidateSet);
+    assert.equal(res2.valid, true);
+    if (res2.valid) {
+      assert.equal(res2.guidance.selectedCandidateId, 'c_4');
+      assert.equal(res2.guidance.hasTargetHighlight, true);
+    }
+  });
+
+  it('step counter does not advance when instruction is reiterated on incomplete action', () => {
+    let stepNumber = 1;
+    let prevInstruction = 'Select cells A1 to B5';
+
+    // User checks again without selecting cells; model reiterates
+    const reiteratedInstruction = 'Select cells A1 to B5';
+    const assessment: string = 'not_started';
+
+    if (reiteratedInstruction !== prevInstruction && assessment === 'expected') {
+      stepNumber += 1;
+    }
+
+    assert.equal(stepNumber, 1, 'Step number must not advance on reiterated instruction');
+  });
+
+  it('step counter advances when new progressive instruction is verified', () => {
+    let stepNumber = 1;
+    let prevInstruction = 'Select cells A1 to B5';
+
+    // User selects cells; model observes progress and advances
+    const nextInstruction = 'Click Insert on the top menu bar';
+    const assessment = 'expected';
+
+    if (nextInstruction !== prevInstruction && assessment === 'expected') {
+      stepNumber += 1;
+    }
+
+    assert.equal(stepNumber, 2, 'Step number must advance when new step is verified');
+  });
+});

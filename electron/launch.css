@@ -188,11 +188,11 @@ body {
   border-radius: var(--radius-control);
   padding: var(--space-3);
   font-family: var(--font-body);
-  font-size: 14.5px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--color-text-dark);
   resize: none;
-  min-height: 64px;
+  min-height: 74px;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }

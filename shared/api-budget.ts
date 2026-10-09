@@ -120,3 +120,72 @@ export class ApiBudgetManager {
 }
 
 export const defaultApiBudget = new ApiBudgetManager();
+
+export interface SessionBudgetState {
+  used: number;
+  max: number;
+  lastRequestTime: number;
+}
+
+/**
+ * In-memory budget manager for live user coaching sessions.
+ * Keeps interactive limits separate from the persistent automated build/test budget.
+ */
+export class InteractiveSessionBudget {
+  private used: number = 0;
+  private max: number;
+  private lastRequestTime: number = 0;
+  private minIntervalMs: number;
+
+  constructor(maxPerSession = 15, minIntervalMs = 5000) {
+    this.max = maxPerSession;
+    this.minIntervalMs = minIntervalMs;
+  }
+
+  public getState(): SessionBudgetState {
+    return {
+      used: this.used,
+      max: this.max,
+      lastRequestTime: this.lastRequestTime
+    };
+  }
+
+  public getRemaining(): number {
+    return Math.max(0, this.max - this.used);
+  }
+
+  public checkAllowance(): { allowed: boolean; reason?: string; waitMs?: number } {
+    if (this.used >= this.max) {
+      return {
+        allowed: false,
+        reason: `Session check limit reached (${this.used}/${this.max}). Reset session (Ctrl+Alt+R) to begin a fresh coaching run.`
+      };
+    }
+
+    const now = Date.now();
+    const elapsed = now - this.lastRequestTime;
+    if (this.lastRequestTime > 0 && elapsed < this.minIntervalMs) {
+      const waitMs = this.minIntervalMs - elapsed;
+      const waitSec = Math.ceil(waitMs / 1000);
+      return {
+        allowed: false,
+        reason: `Rate pacing: please wait ${waitSec}s between checks for model stabilization.`,
+        waitMs
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  public recordRequest(): void {
+    this.used += 1;
+    this.lastRequestTime = Date.now();
+  }
+
+  public resetSession(): void {
+    this.used = 0;
+    this.lastRequestTime = 0;
+  }
+}
+
+export const defaultSessionBudget = new InteractiveSessionBudget();

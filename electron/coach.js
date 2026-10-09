@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
       goalLabel.textContent = payload.goal;
     }
     if (payload.budget !== undefined) {
-      budgetChip.textContent = `${payload.budget}/12 checks left`;
+      budgetChip.textContent = `${payload.budget} checks left`;
     }
 
     if (stateName === 'paused') {
@@ -177,6 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
       isPaused = false;
     }
   }
+
+  // Expose mock state switcher for developer review harness
+  window.__applyMockState = applyState;
 
   // Check button click
   btnCheck.addEventListener('click', () => {

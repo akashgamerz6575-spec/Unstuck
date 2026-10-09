@@ -135,7 +135,6 @@ export async function queryGeminiCoach(
 
   const userPrompt = `GOAL: ${goal}
 PREVIOUS INSTRUCTION: ${previousInstruction || 'None (Initial check)'}
-SCREEN UNCHANGED WARNING: ${isScreenUnchanged ? 'YES (Screen appears identical to previous check; do not advance step unless verified)' : 'NO'}
 
 SESSION HISTORY:
 ${historyText}
@@ -143,7 +142,7 @@ ${historyText}
 VISIBLE OCR TEXT CANDIDATES IN CALC:
 ${candidateDescriptions || 'No candidates detected.'}
 
-Please evaluate the visible screenshot and return your structured coaching response.`;
+Please evaluate the fresh visible screenshot and return your structured coaching response.`;
 
   const requestBody = {
     systemInstruction: {

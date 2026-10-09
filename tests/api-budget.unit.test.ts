@@ -71,3 +71,40 @@ describe('ApiBudgetManager Unit Tests', () => {
     cleanup();
   });
 });
+
+import { InteractiveSessionBudget } from '../shared/api-budget.js';
+
+describe('InteractiveSessionBudget Unit Tests', () => {
+  it('initializes with default session limit of 15 and 0 used', () => {
+    const session = new InteractiveSessionBudget();
+    assert.equal(session.getState().used, 0);
+    assert.equal(session.getState().max, 15);
+    assert.equal(session.getRemaining(), 15);
+  });
+
+  it('allows request when within session limit', () => {
+    const session = new InteractiveSessionBudget();
+    assert.equal(session.checkAllowance().allowed, true);
+  });
+
+  it('blocks request when session limit is reached with understandable message', () => {
+    const session = new InteractiveSessionBudget(3);
+    session.recordRequest();
+    session.recordRequest();
+    session.recordRequest();
+    assert.equal(session.getRemaining(), 0);
+    const check = session.checkAllowance();
+    assert.equal(check.allowed, false);
+    assert.match(check.reason || '', /session check limit reached/i);
+    assert.match(check.reason || '', /Ctrl\+Alt\+R/i);
+  });
+
+  it('resets session without touching disk or automated budget', () => {
+    const session = new InteractiveSessionBudget(5);
+    session.recordRequest();
+    assert.equal(session.getRemaining(), 4);
+    session.resetSession();
+    assert.equal(session.getRemaining(), 5);
+    assert.equal(session.getState().used, 0);
+  });
+});

@@ -16,7 +16,8 @@
     "proof": "electron dist/electron/main.js",
     "typecheck": "tsc --noEmit",
     "test": "node --test dist/tests/*.unit.test.js",
-    "test:integration": "node --test dist/tests/*.integration.test.js"
+    "test:integration": "node --test dist/tests/*.integration.test.js",
+    "review:ui": "electron scripts/capture-ui-review.mjs"
   },
   "bugs": {
     "url": "https://github.com/akashgamerz6575-spec/Unstuck/issues"

@@ -1,7 +1,7 @@
 # Unstuck — Morning Handoff Report
 
 **Prepared for:** Akash V  
-**Date:** 9 October 2026, ~00:46 IST  
+**Date:** 9 October 2026, 06:30 IST  
 **Git Branch:** `main` (strictly single branch; no auxiliary branches created or pushed)  
 **Submission Portal Status:** **Zero submissions made** (both portal submission attempts preserved).  
 **Secret Isolation:** Zero leaks. `GEMINI_API_KEY` exists exclusively in local `.env` (ignored by Git); never exposed to renderers, logs, or commits.
@@ -22,40 +22,55 @@ npm run mock-ui
 ```
 *Opens the active coach panel with a top selector bar. Allows immediate visual inspection of all 9 approved visual states (`ready`, `capturing`, `analysing`, `guidance`, `recovery`, `paused`, `complete`, `error`, `text-only`) without calling Gemini or touching API quota.*
 
-### C. Run Full Test Suite
+### C. Run Full Test Suite & UI Review Capture
 ```bash
-npm test                 # 48 unit tests (offline, fast, ~288 ms)
-npm run test:integration # 7 integration tests (uses calc-test.png fixture, ~12 s)
+npm test            # 56 unit tests (offline, fast, ~267 ms)
+npm run review:ui   # Renders and saves 11 pristine window screenshots to captures/ui-review/
 ```
 
 ---
 
-## 2. What Was Completed & Changed Overnight
+## 2. Morning Hardening Pass & Concrete Fixes
 
-### Stage A: Baseline Reconciliation & Test Separation
-- Preserved existing `.env` and local configuration.
-- Established clean separation between offline unit tests (`dist/tests/*.unit.test.js`) and fixture-dependent integration tests (`dist/tests/*.integration.test.js`).
-- Created reproducible CSV table fixture in `fixtures/department_requests.csv`.
-- Committed Stage A checkpoint on `main`: commit `c15cae6`.
+While Akash was away, a focused hardening and UI verification pass was completed:
 
-### Stage B: Robust AI Coaching Loop & Grounding Guards
-- **Window Scoping (`electron/window-scoping.ts`):** Win32 PowerShell queries retrieve active HWND, title, process, and desktop bounds. Validates that LibreOffice Calc is active and discards candidates from unrelated apps.
-- **Target Region Cropping (`shared/crop-geometry.ts`):** Crops full-desktop capture to active Calc window dimensions before sending to Gemini, preserving physical offset coordinates `(+offsetX, +offsetY)` to accurately map targets back to display space.
-- **Candidate Grounding (`electron/candidate-extractor.ts`):** Local English Tesseract extracts recognizable text words, assigning stable `c_1, c_2, ...` candidate IDs. Gemini selects existing IDs rather than guessing coordinates.
-- **Unchanged Screen Detection:** Signatures of visible text candidates are compared between turns. Unchanged screens trigger a warning preventing fabricated progress.
-- **Persistent Budget Tracker (`shared/api-budget.ts`):** Enforces 12-request max limit and 5-second interval pacing persisted in `.api_budget.json`.
+### Priority 1: Unchanged-Screen Guard & Progressive Step Counter
+- **Defect Found:** The overnight unchanged-screen guard compared sorted OCR candidate text words (`extraction.candidates.map(c => c.text).sort().join('|')`). If a user selected cells `A1:B5`, toggled a radio button, or switched chart type, the visible OCR text was identical, triggering a misleading `SCREEN UNCHANGED WARNING: YES` prompt that tricked Gemini into believing no progress occurred.
+- **Fix Applied:** Removed the false OCR-only warning. Each user Check passes the fresh visible screenshot to multimodal vision for direct visual evaluation of cell selections, radio buttons, and dialogs.
+- **Fixed Step Counter Guard:** Replaced arbitrary turn-counting (`coachingHistory.length + 1`) with progressive `currentStepNumber` tracking. Step numbering remains steady when repeating or clarifying an incomplete step, and does not advance on corrections (`badge: 'Correction'`) or uncertain states (`badge: 'Uncertain'`).
+- **Offline Tests Added:** Added 4 unit tests in `tests/candidate-validation.unit.test.ts` proving identical OCR text signatures across distinct visual task states and verifying non-advancing step progression.
 
-### Stage C: Approved Interface Implementation
-- **Tokens (`electron/tokens.css`):** Implemented approved palette: Canvas `#111B15`, Deep ink `#17211B`, Warm paper `#F4F1E8`, Moss `#A6B68F`, Clay `#D58B64`, Fine border `#D8DDCF`.
-- **Typography (`electron/fonts.css`):** Locally served authentic WOFF2 latin subsets of *Manrope* and *DM Sans* under OFL-1.1 license (total font payload ~62 KB, well under the 400 KB budget).
-- **Launch Window (`electron/launch.html`, `launch.css`, `launch.js`):** Headline *"Find your next move."*, supporting copy, scope badge, task entry card, and original vector SVG sculptural knot-to-clear centerpiece with ambient motion and `@media (prefers-reduced-motion)`.
-- **Active Coach Panel (`electron/coach.html`, `coach.css`, `coach.js`):** Compact ~380px paper panel docked bottom-right, draggable header, dominant 18.5px directive, "What I noticed" rationale, clay recovery callouts, and state machine supporting all 9 states.
-- **Transparent Overlay (`electron/overlay.html`):** Fullscreen pass-through window with readable Moss outline (`#A6B68F`) and dark contrast stroke/shadow (`rgba(23, 33, 27, 0.85)`).
+### Priority 2: Controller & Request Lifecycle Hardening
+- **Defect Found (Own-Window Click):** Clicking "Check my progress" or "Start coaching" directly focused Unstuck's own window. If `GetForegroundWindow()` inspected the window before OS focus restored to Calc, it reported process `electron`, falsely failing the foreground guard with *"Please switch to LibreOffice Calc"*.
+- **Fix Applied:** Updated `electron/window-scoping.ts` so when the active window is Unstuck itself (`electron`, `unstuck`, or `hWnd == 0`), the scoper resolves the active LibreOffice Calc window (`soffice`, `soffice.bin`). Unrelated foreground apps (e.g. Chrome, VS Code) remain strictly rejected.
+- **Fixed `ERR_FILE_NOT_FOUND` in Mock Window:** In `createCoachWindow`, `loadFile('${coachHtmlPath}?mock=true')` URL-encoded the question mark on Windows, causing file load failure. Replaced with clean IPC-driven mock activation (`isMockMode: true`).
+- **Cancellation & State Guards:** Enforced `if (requestId !== currentRequestId || isPaused) return false;` at all async boundaries. Mapped `uncertain` model status to `text-only` state with badge `'Uncertain'`.
 
-### Stage D & E: QA, Verification & Documentation
-- **Unit Suite:** 48 unit tests passing with zero failures.
-- **Integration Suite:** 7 integration tests passing with zero failures.
-- **Documentation:** Complete `README.md`, `docs/demo_script.md`, `docs/overnight_status.md`, and this `docs/morning_handoff.md`.
+### Priority 3: API Budget Reconciliation & Preservation
+- **Defect Found:** The overnight automatic test budget tracker (`.api_budget.json`, 2 used of 12 max) was being shared with live interactive coaching. Calling session reset in the app erased `.api_budget.json`, wiping the 2 recorded automatic calls.
+- **Fix Applied:** Separated the budgets in `shared/api-budget.ts`:
+  1. **Automated Test / Build Budget (`.api_budget.json`):** Preserved exactly at **2 of 12 used** (10 remaining). Never modified or reset by interactive sessions.
+  2. **Interactive Session Budget (`InteractiveSessionBudget`):** In-memory per-session budget (default 15 checks, with 5s pacing). Resetting a session (`Ctrl+Alt+R`) resets the in-memory session counter without touching disk.
+  3. Clear, understandable messages on rate pacing (*"Please wait 5s between checks..."*) and session completion (*"Session check limit reached (15 checks). Reset session (Ctrl+Alt+R)..."*).
+
+### Priority 4: Visual UI Verification & Render Captures
+- **Visual Capture Harness:** Created `scripts/capture-ui-review.mjs` (`npm run review:ui`) using Electron's `webContents.capturePage()`.
+- **Renders Captured to `captures/ui-review/`:**
+  - `01-launch-window.png`: Launch Window (~1040x700) with Manrope typography, knot-to-clear ribbon, task card, and preset chip.
+  - `02-coach-ready.png`: Ready state.
+  - `03-coach-capturing.png`: Capturing state (subdued spinner).
+  - `04-coach-analysing.png`: Analysing state (*"Reading your screen…"*, disabled button).
+  - `05-coach-guidance.png`: Step 1 guidance (dominant 18.5px instruction, "What I noticed", Moss button).
+  - `06-coach-recovery.png`: Correction state (warm clay border, Clay Correction callout, recovery rationale).
+  - `07-coach-paused.png`: Paused state (*"Coaching is paused. Press Resume when ready."*).
+  - `08-coach-complete.png`: Complete state (green badge, *"Start new task"*).
+  - `09-coach-error.png`: Actionable error state (*"Cannot see LibreOffice Calc. Please bring Calc into view..."*).
+  - `10-coach-text-only.png`: Text-only action guidance (drag instruction, zero false overlay).
+  - `11-coach-developer-mock.png`: Developer mock QA mode with top selector bar.
+- **Visual Fixes Applied:**
+  - Increased goal textarea height to `min-height: 74px` with `rows="3"`, eliminating the vertical scrollbar.
+  - Verified local *Manrope* and *DM Sans* WOFF2 fonts render crisp on all cards.
+  - Verified contrast on all text/background combinations.
 
 ---
 
@@ -63,65 +78,58 @@ npm run test:integration # 7 integration tests (uses calc-test.png fixture, ~12 
 
 | Evidence Category | Check Description | Result / Measured Timing |
 |---|---|---|
-| **Unit Tests** | 48 portable tests (DPI math, crop offsets, contracts, budget) | **PASS** in 288 ms (Node test runner) |
+| **Unit Tests** | 56 portable unit tests (DPI math, crop offsets, contracts, budget, identical OCR text, lifecycle) | **PASS** in 267 ms (Node test runner) |
 | **Integration OCR** | English Tesseract candidate extraction on `calc-test.png` | **PASS** (41 candidates extracted in 2,876 ms) |
 | **Integration Gemini** | Single live request to `gemini-3.1-flash-lite` (LOW thinking) | **PASS** in 2,886.5 ms (Total turn 5,776 ms) |
-| **Model Token Usage** | Prompt: 2,977 tokens, Candidate: 121, Thoughts: 103, Total: 3,201 | Verified within limits |
 | **Model Grounding** | Unselected data correctly evaluated as text-only cell drag | `selectedCandidateId: null` returned (zero hallucinated boxes) |
-| **Physical Display Test** | Insert outline visibility & click-through menu opening | **PASS** (Physically confirmed by Akash in earlier run) |
-| **Repository Size** | Git objects and tracked sources | **~100 KiB** (comfortably under the 8 MB target / 10 MB limit) |
+| **UI Window Renders** | 11 pristine PNG captures of Launch and Coach windows in `captures/ui-review/` | **PASS** (captured via native `capturePage()`) |
+| **Repository Size** | Tracked git sources & object database | **~205 KiB** (well under 8 MB target / 10 MB limit) |
 
 ---
 
 ## 4. API Budget Audit
 
-- **Allowed Overnight Limit:** 12 requests.
-- **Requests Used Overnight:** **2 requests** (both succeeded).
-  1. *Request 1 (00:23 IST):* Turn #1 integration test on `calc-test.png` (8,403.5 ms).
-  2. *Request 2 (00:44 IST):* Automated integration contract verification (2,886.5 ms).
-- **Remaining Overnight Allowance:** **10 requests** (persisted in `.api_budget.json`).
-- *Note:* Rate pacing requires at least 5 seconds between consecutive requests.
+- **Automated Build Budget (`.api_budget.json`):** Exactly **2 of 12 requests** used (10 remaining).
+  - *Request 1 (00:23 IST):* Turn #1 integration test on `calc-test.png` (8,403.5 ms).
+  - *Request 2 (00:44 IST):* Automated integration contract verification (2,886.5 ms).
+- **Interactive Coaching Session Budget:** In-memory, **15 checks per session** with 5-second minimum pacing.
+- Zero live Gemini requests were made during this morning hardening pass.
 
 ---
 
-## 5. Local Git Repository Audit
+## 5. Short Ordered Manual Test for Akash (5–7 Minutes)
 
-- **Active Branch:** `main`
-- **Baseline Checkpoint Commit:** `c15cae6` (*feat: Stage A - reconcile baseline, test separation, and reproducible fixture*)
-- **Total Tracked Assets Size:** ~100 KiB.
-- **Uncommitted Changes:** Stage B, C, D, E implementation ready for the final local checkpoint commit.
-- **Remote Status:** Never pushed to GitHub; portal submission untouched.
-
----
-
-## 6. Pending Physical Checks for Akash (Morning Routine)
-
-Because Windows session lock / display sleep suspends WebRTC desktop capture, the following physical checks remain for morning validation:
-
-1. [ ] **Launch Window Visual Appearance:** Run `npm start`, confirm Manrope headline rendered crisp and knot-to-clear ribbon animates smoothly.
-2. [ ] **Active Coach Window Placement:** Click "Start coaching", verify coach window docks at bottom-right corner and is draggable via its header.
-3. [ ] **Live Foreground Calc Verification:** Bring LibreOffice Calc into view with `fixtures/department_requests.csv`, press `Ctrl+Alt+U`, verify coach transitions from "Reading your screen…" to Step 1.
-4. [ ] **Live Wrong Menu Recovery:** Deliberately click Calc's "Format" menu, press `Ctrl+Alt+U`, verify coach displays clay recovery badge: *"You opened the 'Format' menu instead of 'Insert'"*.
-5. [ ] **Chart Wizard Guidance:** Open *Insert -> Chart...*, press `Ctrl+Alt+U`, verify guidance directs user to select *Bar* chart and set title to *"Requests by department"*.
-6. [ ] **Completion Verification:** Complete the chart, press `Ctrl+Alt+U`, verify coach transitions to green *Complete* state.
-
----
-
-## 7. Recommended 10-Minute Morning Verification Plan
-
-1. **Step 1 (1 min):** Run offline unit tests:
-   ```bash
-   npm test
-   ```
-   *Expected: 48 tests pass in < 400 ms.*
-2. **Step 2 (2 min):** Open mock UI mode:
-   ```bash
-   npm run mock-ui
-   ```
-   *Use the top dropdown to toggle through states 1 to 9. Check visual contrast and typography.*
-3. **Step 3 (5 min):** Open LibreOffice Calc with `fixtures/department_requests.csv` and launch Unstuck:
+1. **Step 1: Start LibreOffice Calc:**
+   - Open LibreOffice Calc with `fixtures/department_requests.csv`.
+   - Leave cells unselected (click on cell `C10`).
+2. **Step 2: Launch Unstuck:**
    ```bash
    npm start
    ```
-   *Follow the 4 steps outlined in `docs/demo_script.md`.*
-4. **Step 4 (2 min):** Review final status in `docs/overnight_status.md` and commit final checkpoint if desired.
+   - Confirm Launch Window opens with *"Find your next move."* and knot-to-clear ribbon.
+   - Click **"Start coaching"**. Coach window docks at bottom-right corner.
+3. **Step 3: Initial Check (Drag Instruction):**
+   - Click **"Check my progress"** (or press `Ctrl+Alt+U`).
+   - Coach observes unselected cells and instructs: *"Click cell A1 and drag down to cell B5"*.
+   - Verify no false highlight appears for drag gesture.
+4. **Step 4: Range Selected & Insert Outline:**
+   - Select `A1:B5` in Calc.
+   - Press `Ctrl+Alt+U`.
+   - Coach transitions to Step 2: *"Click 'Insert' on the top menu bar"*.
+   - Transparent overlay highlights **Insert** in high-contrast Moss outline (`#A6B68F`).
+   - Click directly through the highlight onto **Insert** to verify click-through.
+5. **Step 5: Deliberate Deviation & Recovery:**
+   - Click the adjacent **Format** menu item instead of *Chart*.
+   - Press `Ctrl+Alt+U`.
+   - Coach displays warm clay **Correction** badge: *"You opened the 'Format' menu instead of 'Insert'"*.
+   - Overlay repositions back to **Insert**.
+6. **Step 6: Chart Wizard & Completion:**
+   - Click *Insert -> Chart...*, select *Bar* chart, set title to *"Requests by department"*, click Finish.
+   - Press `Ctrl+Alt+U`.
+   - Coach displays green **Complete** state: *"Well done! Your horizontal bar chart titled 'Requests by department' is inserted."*
+
+---
+
+## 6. Remaining Unverified Behavior
+
+- **Physical End-to-End Run with Live Desktop:** All offline contracts, DPI conversions, candidate groundings, and rendered UI states are verified. Live end-to-end guidance with LibreOffice Calc actively in the foreground on your physical display remains to be rehearsed following the 6-step checklist above.

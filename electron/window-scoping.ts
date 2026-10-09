@@ -51,6 +51,22 @@ $r = New-Object WinScoper+RECT
 [WinScoper]::GetWindowRect($h, [ref]$r) | Out-Null
 $pName = ""
 if ($targetPid -gt 0) { $pName = (Get-Process -Id $targetPid -ErrorAction SilentlyContinue).ProcessName }
+
+# If the foreground window is Unstuck itself (due to user clicking Check/Start in our own window),
+# locate the active LibreOffice Calc window rather than falsely rejecting the user click.
+$isSelf = ($pName -eq "electron" -or $pName -eq "unstuck" -or $sb.ToString() -match "Unstuck" -or $h -eq [IntPtr]::Zero)
+if ($isSelf) {
+    $calcProc = Get-Process -Name soffice, soffice.bin -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    if ($calcProc) {
+        $h = $calcProc.MainWindowHandle
+        $sb = New-Object System.Text.StringBuilder 256
+        [WinScoper]::GetWindowText($h, $sb, 256) | Out-Null
+        $targetPid = [uint32]$calcProc.Id
+        [WinScoper]::GetWindowRect($h, [ref]$r) | Out-Null
+        $pName = $calcProc.ProcessName
+    }
+}
+
 @{
     hWnd = $h.ToInt64()
     title = $sb.ToString()
