@@ -161,12 +161,13 @@ function createCoachWindow(isMockMode = false): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
 
+  const margin = 20;
   const panelW = 380;
-  const panelH = 430;
-  const margin = 24;
+  const maxAvailableH = Math.max(360, workArea.height - margin * 2);
+  const panelH = Math.min(480, maxAvailableH);
 
-  const x = Math.round(workArea.x + workArea.width - panelW - margin);
-  const y = Math.round(workArea.y + workArea.height - panelH - margin);
+  const x = Math.max(workArea.x + margin, Math.min(workArea.x + workArea.width - panelW - margin, Math.round(workArea.x + workArea.width - panelW - margin)));
+  const y = Math.max(workArea.y + margin, Math.min(workArea.y + workArea.height - panelH - margin, Math.round(workArea.y + workArea.height - panelH - margin)));
 
   const win = new BrowserWindow({
     x,
@@ -361,16 +362,9 @@ async function executeCoachingTurn(): Promise<boolean> {
     const windowInfo = getForegroundWindowInfo();
     console.log(`[Target Scoping] Active window: "${windowInfo.title}" (Process: ${windowInfo.process})`);
 
-    // Restore coach & overlay windows
-    if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.showInactive();
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
-
     if (!windowInfo.isCalc) {
       console.warn(`[Target Scoping Guard] Active window is not LibreOffice Calc!`);
+      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
       sendCoachUpdate({
         state: 'error',
         instruction: 'Please switch to LibreOffice Calc and click Check again.',
@@ -379,7 +373,7 @@ async function executeCoachingTurn(): Promise<boolean> {
       return false;
     }
 
-    // 4. Capture screen
+    // 4. Capture screen while coach and overlay windows remain strictly hidden
     const primaryDisplay = screen.getPrimaryDisplay();
     const runtimeBounds = primaryDisplay.bounds;
     const scaleFactor = primaryDisplay.scaleFactor;
@@ -400,6 +394,7 @@ async function executeCoachingTurn(): Promise<boolean> {
     const matchedSource = sources.find((s) => s.display_id === targetDisplayId) || sources[0];
 
     if (!matchedSource) {
+      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
       sendCoachUpdate({
         state: 'error',
         instruction: 'Screen capture failed: Display surface detached.',
@@ -413,6 +408,14 @@ async function executeCoachingTurn(): Promise<boolean> {
     const fullImageBuffer = thumbnail.toPNG();
     const captureLatencyMs = performance.now() - captureStartTime;
 
+    // 5. Restore coach & overlay windows NOW that screen capture buffer is safely in memory
+    if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.showInactive();
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+
     if (captureDims.width === 0 || captureDims.height === 0 || fullImageBuffer.length === 0) {
       sendCoachUpdate({
         state: 'error',
@@ -424,7 +427,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     if (requestId !== currentRequestId) return false;
 
-    // 5. Target Region Cropping & Offset Calculation
+    // 6. Target Region Cropping & Offset Calculation
     const cropCalc = calculateWindowCrop(windowInfo.bounds, captureDims, scaleFactor);
     let targetImageBuffer = fullImageBuffer;
     let cropOffset = { x: 0, y: 0 };
@@ -438,7 +441,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     sendCoachUpdate({ state: 'analysing' });
 
-    // 6. Extract OCR Candidates within active window
+    // 7. Extract OCR Candidates within active window
     const extraction = await extractOcrCandidates(targetImageBuffer, windowInfo.bounds, scaleFactor);
 
     // Map candidate pixel bounding boxes back to full capture pixel space
@@ -451,7 +454,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     if (requestId !== currentRequestId || isPaused) return false;
 
-    // 7. Query Gemini Coach with fresh screenshot & candidates
+    // 8. Query Gemini Coach with fresh screenshot & candidates
     const result = await queryGeminiCoach({
       apiKey: GEMINI_API_KEY,
       imageBuffer: targetImageBuffer,
@@ -470,10 +473,14 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     if (!result.success || !result.guidance) {
       console.error(`[AI Coach Error] ${result.error}`);
+      // Clear any stale highlight on error
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('clear-outline');
+      }
       sendCoachUpdate({
         state: 'error',
         instruction: result.error || 'Temporary reasoning error.',
-        observation: 'Session preserved. Click Check to try again.'
+        observation: 'Session context preserved. Click Check to try again.'
       });
       return false;
     }

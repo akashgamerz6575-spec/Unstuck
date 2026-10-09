@@ -176,6 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
       btnPause.textContent = 'Pause';
       isPaused = false;
     }
+
+    // Scroll content region to beginning so immediate instruction is always visible
+    const scrollContainer = document.getElementById('panel-scroll-content');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
   }
 
   // Expose mock state switcher for developer review harness

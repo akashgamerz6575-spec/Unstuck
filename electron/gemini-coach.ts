@@ -215,11 +215,11 @@ Please evaluate the fresh visible screenshot and return your structured coaching
       },
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,
-      maxOutputTokens: 512
+      maxOutputTokens: 2048
     }
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${COACH_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${COACH_MODEL}:generateContent`;
 
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
@@ -228,7 +228,8 @@ Please evaluate the fresh visible screenshot and return your structured coaching
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify(requestBody),
       signal: abortController.signal
@@ -280,28 +281,69 @@ Please evaluate the fresh visible screenshot and return your structured coaching
     }
 
     const json = (await response.json()) as any;
-    const candidateParts = json.candidates?.[0]?.content?.parts || [];
-    const textPart = candidateParts.find((p: { text?: string }) => typeof p.text === 'string')?.text;
+    const candidate = json.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    const candidateParts = candidate?.content?.parts || [];
 
-    if (!textPart) {
+    // Correctly assemble chosen candidate's final answer text (strictly exclude thought parts)
+    const answerParts = candidateParts.filter((p: any) => typeof p.text === 'string' && !p.thought);
+    const finalAnswerText = answerParts.map((p: any) => p.text).join('');
+
+    const usage = json.usageMetadata;
+    const tokens = usage ? {
+      prompt: usage.promptTokenCount || 0,
+      candidate: usage.candidatesTokenCount || 0,
+      total: usage.totalTokenCount || 0,
+      thoughts: usage.thoughtsTokenCount || 0
+    } : undefined;
+
+    // Structured diagnostics without logging sensitive payload content
+    console.log(`[Gemini Diagnostics] Model: ${COACH_MODEL} | Duration: ${durationMs.toFixed(0)}ms | finishReason: ${finishReason || 'UNKNOWN'} | Tokens: prompt=${tokens?.prompt ?? 0}, output=${tokens?.candidate ?? 0}, thoughts=${tokens?.thoughts ?? 0}, total=${tokens?.total ?? 0} | ExtractedTextLen: ${finalAnswerText.length}`);
+
+    // Output token exhaustion detection (explicit failure, never fabricate)
+    if (finishReason === 'MAX_TOKENS') {
       return {
         success: false,
         guidance: null,
         selectedCandidate: null,
         durationMs,
-        error: 'Model returned response without text payload'
+        tokens,
+        error: 'Model output truncated: max output tokens limit reached (finishReason: MAX_TOKENS). Session context preserved.'
+      };
+    }
+
+    if (finishReason && finishReason !== 'STOP') {
+      return {
+        success: false,
+        guidance: null,
+        selectedCandidate: null,
+        durationMs,
+        tokens,
+        error: `Model generation stopped unexpectedly (finishReason: ${finishReason}). Session context preserved.`
+      };
+    }
+
+    if (!finalAnswerText || finalAnswerText.trim().length === 0) {
+      return {
+        success: false,
+        guidance: null,
+        selectedCandidate: null,
+        durationMs,
+        tokens,
+        error: 'Model returned response without text payload.'
       };
     }
 
     let parsedPayload: unknown;
     try {
-      parsedPayload = JSON.parse(textPart);
+      parsedPayload = JSON.parse(finalAnswerText);
     } catch (parseErr) {
       return {
         success: false,
         guidance: null,
         selectedCandidate: null,
         durationMs,
+        tokens,
         error: `Failed to parse model JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
       };
     }
@@ -316,6 +358,7 @@ Please evaluate the fresh visible screenshot and return your structured coaching
         guidance: null,
         selectedCandidate: null,
         durationMs,
+        tokens,
         error: `Contract validation failed: ${validationResult.errors.join('; ')}`
       };
     }
@@ -326,14 +369,6 @@ Please evaluate the fresh visible screenshot and return your structured coaching
     if (guidance.selectedCandidateId) {
       selectedCandidate = candidates.find(c => c.id === guidance.selectedCandidateId) || null;
     }
-
-    const usage = json.usageMetadata;
-    const tokens = usage ? {
-      prompt: usage.promptTokenCount || 0,
-      candidate: usage.candidatesTokenCount || 0,
-      total: usage.totalTokenCount || 0,
-      thoughts: usage.thoughtsTokenCount || 0
-    } : undefined;
 
     return {
       success: true,
@@ -352,16 +387,41 @@ Please evaluate the fresh visible screenshot and return your structured coaching
         guidance: null,
         selectedCandidate: null,
         durationMs,
-        error: `API Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
+        error: `API Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Upstream server took too long to respond.`
       };
     }
+
+    const errorObj = err as any;
+    const cause = errorObj?.cause;
+    const causeCode = cause?.code || cause?.name || errorObj?.code || null;
+    const causeMessage = cause?.message || null;
+
+    let userFacingMessage = 'Network connection failed: unable to reach Google Gemini API.';
+    let diagnosticDetail = causeCode ? `[${causeCode}]` : '';
+    if (causeMessage && !causeMessage.includes(apiKey)) {
+      diagnosticDetail += ` ${causeMessage}`;
+    }
+
+    if (causeCode === 'ENOTFOUND') {
+      userFacingMessage = 'Network error: DNS resolution failed (no internet or host unreachable).';
+    } else if (causeCode === 'ECONNRESET') {
+      userFacingMessage = 'Network error: Connection reset by upstream server.';
+    } else if (causeCode === 'ETIMEDOUT' || causeCode === 'UND_ERR_CONNECT_TIMEOUT') {
+      userFacingMessage = 'Network error: Connection to Google Gemini API timed out.';
+    } else if (causeCode === 'ECONNREFUSED') {
+      userFacingMessage = 'Network error: Connection refused by target server.';
+    }
+
+    const fullErrorMessage = diagnosticDetail
+      ? `${userFacingMessage} ${diagnosticDetail.trim()}`
+      : `${userFacingMessage} (${errorObj?.message || String(err)})`;
 
     return {
       success: false,
       guidance: null,
       selectedCandidate: null,
       durationMs,
-      error: `Network/API Error: ${err instanceof Error ? err.message : String(err)}`
+      error: fullErrorMessage
     };
   }
 }

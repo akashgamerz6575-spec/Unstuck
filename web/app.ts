@@ -725,6 +725,7 @@ class UnstuckWebApp {
       this.motion.setPanelIndicatorAnalysing(false);
 
       if (!response.ok || !data.success || !data.guidance) {
+        this.clearHighlight();
         if (response.status === 429) {
           this.setState('error');
           this.showToast(data.error || 'Rate limit reached. Please wait a moment.');
@@ -825,6 +826,7 @@ class UnstuckWebApp {
         this.showToast('Analysis cancelled.');
         return;
       }
+      this.clearHighlight();
       this.setState('error');
       this.instructionText.textContent = 'Connection error. Please check your network and try again.';
       this.showToast('Network connection failed.');

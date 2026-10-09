@@ -35,8 +35,8 @@
       </select>
     </div>
 
-    <!-- Body Area -->
-    <main class="panel-body">
+    <!-- Scrollable Content Body (min-height: 0) -->
+    <main class="panel-body panel-scroll-content" id="panel-scroll-content">
       <!-- Goal Summary Chip -->
       <div class="goal-context">
         <div class="goal-dot"></div>
@@ -70,8 +70,10 @@
         </div>
         <p class="observation-text" id="observation-text">Data range A1:B5 is selected. The top menu bar is visible.</p>
       </div>
+    </main>
 
-      <!-- Action Controls -->
+    <!-- Fixed Action Controls Area -->
+    <div class="controls-container">
       <div class="controls-row">
         <button class="btn-check" id="btn-check">
           <span>Check my progress</span>
@@ -79,7 +81,7 @@
         <button class="btn-sec" id="btn-pause">Pause</button>
         <button class="btn-sec" id="btn-stop">Stop</button>
       </div>
-    </main>
+    </div>
 
     <!-- Footer Telemetry -->
     <footer class="panel-footer">
