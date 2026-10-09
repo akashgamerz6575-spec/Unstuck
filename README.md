@@ -2,6 +2,9 @@
 
 > **"Your screen. One clear next move."**  
 > Meet **Nori**, an interactive desktop pair coach guiding beginners through complex desktop software tasks with on-demand screen observation, local OCR grounding, pass-through visual overlays, progress verification, and mistake recovery.
+> 
+> 🌐 **Live Web Companion:** [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/)  
+> 📦 **GitHub Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)
 
 ---
 
@@ -50,7 +53,7 @@ To adhere strictly to truthfulness, we clearly categorize all demonstration evid
 | **Automated Unit Tests** | 89 tests across 25 suites covering coordinate math, crop geometry, request lifecycle, model response assembly, and network diagnostics. | Executed via `npm test` using Node.js native test runner (`node --test`). | **Verified:** 89 passing, 0 failing. |
 | **Live Gemini on Fixtures** | 3-column table cell evaluation (`fixtures/calc-three-column-*.png`). | Executed live with Google Gemini API against synthetic fixtures created using Pillow. | **Verified on Synthetic Fixture:** C5 correctly identified; synthetic yellow fill verified. |
 | **Local Browser Companion** | Web server endpoints, health checks, clean Calc scenarios, and candidate grounding. | Executed locally on `http://localhost:8080` with mock-safe scenario exploration. | **Verified:** All routes, rate pacing, and responsive UI working. |
-| **Public Render Deployment** | Live web service accessible to judges and reviewers. | Deployed containerized Web Service on Render with live health check `/healthz`. | **Pending Deployment** (Handoff prepared for Akash). |
+| **Public Render Deployment** | Live web service accessible to judges and reviewers at [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/). | Deployed Docker Web Service on Render with live health check `/healthz` and live Gemini multimodal analysis verified. | **Verified Live** (HTTP 200, valid multimodal vision guidance). |
 
 ### Visual Walkthrough of Verified Windows 11 Workflow
 The following live desktop execution screenshots demonstrate Unstuck's visual observation, grounding, progress verification, and mistake recovery in real time:
@@ -140,12 +143,14 @@ npm run build
 ## 7. How to Run
 
 ### Option A: Unstuck Web Companion (Browser on Any OS)
-```bash
-npm run start:web
-```
-- Starts the lightweight Node HTTP server on `http://localhost:8080`.
-- Health check available at `http://localhost:8080/healthz`.
-- **Try an Example:** Click any scenario button (*Start*, *Data selected*, *Wrong chart*, *Finished chart*) to load clean Calc fixtures without spending API calls until you click **"Find my next move"**.
+- **Live Public URL:** **[https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/)** (deployed on Render, ready for instant reviewer exploration).
+- **Run Locally:**
+  ```bash
+  npm run start:web
+  ```
+  - Starts the lightweight Node HTTP server on `http://localhost:8080`.
+  - Health check available at `http://localhost:8080/healthz`.
+  - **Try an Example:** Click any scenario button (*Start*, *Data selected*, *Wrong chart*, *Finished chart*) to load clean Calc fixtures without spending API calls until you click **"Find my next move"**.
 
 ### Option B: Windows Desktop Application (Live Transparent Overlay)
 ```bash

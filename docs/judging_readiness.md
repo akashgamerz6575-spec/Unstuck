@@ -5,6 +5,7 @@
 > **Target Application Baseline:** LibreOffice Calc (creating a labelled horizontal bar chart from tabular data `A1:B5`)  
 > **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.76 MB** across 104 files; Git database: **~3.07 MB**; Total: **~6.82 MB**)  
 > **Public Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)  
+> **Live Web Deployment:** [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/)  
 > **Submission Deadline:** 9 October, 4:30 PM IST  
 
 ---
@@ -258,4 +259,5 @@ CMD ["node", "dist/server/server.js"]
 - [x] **Manual Desktop Demonstration on Real Calc:** Akash verified cell 46000 in C2, yellow background guidance, and subsequent check confirming COMPLETE with yellow fill on a live Calc session.
 - [x] **Nori Character Asset:** Preserved approved character asset and visual features.
 - [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) on header and footer with no fabricated metrics.
-- [x] **Release Commit Ready:** Local release audit completed and staged for push to origin/main.
+- [x] **Live Render Deployment Verified:** Deployed on Render at [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/), with health endpoint `/healthz` returning HTTP 200, clean static asset delivery, and live Gemini multimodal analysis verified (`status: "guide"`, unselected range recognition).
+- [x] **Release Commit Deployed:** All release audit items and documentation updates pushed to `origin/main`.
