@@ -298,6 +298,22 @@ describe('Web Server HTTP Endpoints Unit Tests', () => {
     assert.strictEqual(data.ok, true);
   });
 
+  it('POST /api/session/reset and /api/check safely handle non-object payloads without crashing', async () => {
+    const resReset = await fetch(`http://127.0.0.1:${testPort}/api/session/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null'
+    });
+    assert.strictEqual(resReset.status, 200);
+
+    const resCheck = await fetch(`http://127.0.0.1:${testPort}/api/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null'
+    });
+    assert.strictEqual(resCheck.status, 400);
+  });
+
   it('serves static index.html on GET /', async () => {
     const res = await fetch(`http://127.0.0.1:${testPort}/`);
     assert.strictEqual(res.status, 200);

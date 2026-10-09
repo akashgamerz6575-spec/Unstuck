@@ -338,6 +338,17 @@ async function executeCoachingTurn(): Promise<boolean> {
   const turnIndex = coachingHistory.length + 1;
   const totalStartTime = performance.now();
 
+  const restoreCaptureWindows = () => {
+    if (coachWindow && !coachWindow.isDestroyed()) {
+      coachWindow.show();
+    }
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.showInactive();
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  };
+
   try {
     sendCoachUpdate({ state: 'capturing' });
 
@@ -354,7 +365,7 @@ async function executeCoachingTurn(): Promise<boolean> {
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     if (requestId !== currentRequestId) {
-      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
+      restoreCaptureWindows();
       return false;
     }
 
@@ -364,7 +375,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     if (!windowInfo.isCalc) {
       console.warn(`[Target Scoping Guard] Active window is not LibreOffice Calc!`);
-      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
+      restoreCaptureWindows();
       sendCoachUpdate({
         state: 'error',
         instruction: 'Please switch to LibreOffice Calc and click Check again.',
@@ -394,7 +405,7 @@ async function executeCoachingTurn(): Promise<boolean> {
     const matchedSource = sources.find((s) => s.display_id === targetDisplayId) || sources[0];
 
     if (!matchedSource) {
-      if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
+      restoreCaptureWindows();
       sendCoachUpdate({
         state: 'error',
         instruction: 'Screen capture failed: Display surface detached.',
@@ -409,12 +420,7 @@ async function executeCoachingTurn(): Promise<boolean> {
     const captureLatencyMs = performance.now() - captureStartTime;
 
     // 5. Restore coach & overlay windows NOW that screen capture buffer is safely in memory
-    if (coachWindow && !coachWindow.isDestroyed()) coachWindow.show();
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.showInactive();
-      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
+    restoreCaptureWindows();
 
     if (captureDims.width === 0 || captureDims.height === 0 || fullImageBuffer.length === 0) {
       sendCoachUpdate({
@@ -558,6 +564,7 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     return true;
   } catch (err) {
+    restoreCaptureWindows();
     console.error('[AI Coach Fatal Error]', err);
     sendCoachUpdate({
       state: 'error',
@@ -584,9 +591,12 @@ function registerShortcuts(): void {
 }
 
 // IPC Handlers
-ipcMain.on('start-coaching', (_event, data) => {
-  if (data?.goal) {
-    coachingGoal = data.goal;
+ipcMain.on('start-coaching', (_event, data: unknown) => {
+  if (data && typeof data === 'object' && 'goal' in data) {
+    const rawGoal = (data as { goal: unknown }).goal;
+    if (typeof rawGoal === 'string' && rawGoal.trim().length > 0) {
+      coachingGoal = rawGoal.trim();
+    }
   }
   // Invalidate previous session history, instructions, and outlines on start/restart
   currentRequestId++;
@@ -652,12 +662,12 @@ ipcMain.on('reset-session', () => {
 
 ipcMain.on('window-minimize', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) win.minimize();
+  if (win && !win.isDestroyed()) win.minimize();
 });
 
 ipcMain.on('window-close', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) win.close();
+  if (win && !win.isDestroyed()) win.close();
 });
 
 // App Lifecycle

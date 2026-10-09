@@ -45,7 +45,7 @@ const MIME_TYPES: Record<string, string> = {
 /**
  * Reads and parses JSON body from an incoming HTTP request with size cap.
  */
-function readJsonBody(req: http.IncomingMessage, maxBytes = 12 * 1024 * 1024): Promise<any> {
+function readJsonBody(req: http.IncomingMessage, maxBytes = 12 * 1024 * 1024): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks: Buffer[] = [];
@@ -260,7 +260,8 @@ export const requestHandler: http.RequestListener = async (req, res) => {
   if (method === 'POST' && pathname === '/api/session/reset') {
     try {
       const body = await readJsonBody(req);
-      const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : null;
+      const payload = (body && typeof body === 'object' && !Array.isArray(body)) ? (body as Record<string, unknown>) : {};
+      const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : null;
       if (sessionId) {
         sessionManager.resetSession(sessionId);
       }
@@ -276,10 +277,11 @@ export const requestHandler: http.RequestListener = async (req, res) => {
     let sessionId = 'default';
     try {
       const body = await readJsonBody(req);
+      const payload = (body && typeof body === 'object' && !Array.isArray(body)) ? (body as Record<string, unknown>) : {};
 
       // Validate session ID
-      if (typeof body.sessionId === 'string' && body.sessionId.trim().length > 0) {
-        sessionId = body.sessionId.trim().slice(0, 64);
+      if (typeof payload.sessionId === 'string' && payload.sessionId.trim().length > 0) {
+        sessionId = payload.sessionId.trim().slice(0, 64);
       }
 
       // Check server-side rate pacing and session quotas
@@ -294,7 +296,7 @@ export const requestHandler: http.RequestListener = async (req, res) => {
       }
 
       // Validate Goal
-      const rawGoal = typeof body.goal === 'string' ? body.goal.trim() : '';
+      const rawGoal = typeof payload.goal === 'string' ? payload.goal.trim() : '';
       if (rawGoal.length < 3 || rawGoal.length > 500) {
         sendJson(res, 400, {
           success: false,
@@ -304,7 +306,7 @@ export const requestHandler: http.RequestListener = async (req, res) => {
       }
 
       // Validate base64 image string
-      const rawBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
+      const rawBase64 = typeof payload.imageBase64 === 'string' ? payload.imageBase64.trim() : '';
       if (!rawBase64) {
         sendJson(res, 400, {
           success: false,
@@ -331,8 +333,8 @@ export const requestHandler: http.RequestListener = async (req, res) => {
       sessionManager.beginRequest(sessionId);
 
       // Validate previous instruction & history
-      const previousInstruction = typeof body.previousInstruction === 'string' && body.previousInstruction.trim().length > 0
-        ? body.previousInstruction.trim().slice(0, 300)
+      const previousInstruction = typeof payload.previousInstruction === 'string' && payload.previousInstruction.trim().length > 0
+        ? payload.previousInstruction.trim().slice(0, 300)
         : null;
 
       const history: Array<{
@@ -341,14 +343,17 @@ export const requestHandler: http.RequestListener = async (req, res) => {
         assessment: string;
         status: string;
         selectedCandidateText: string | null;
-      }> = Array.isArray(body.history)
-        ? body.history.slice(-5).map((h: any, idx: number) => ({
-            turnNumber: typeof h.turnNumber === 'number' ? h.turnNumber : idx + 1,
-            instruction: String(h.instruction || '').slice(0, 200),
-            assessment: String(h.assessment || 'uncertain'),
-            status: String(h.status || 'guide'),
-            selectedCandidateText: h.selectedCandidateText ? String(h.selectedCandidateText).slice(0, 50) : null
-          }))
+      }> = Array.isArray(payload.history)
+        ? payload.history.slice(-5).map((h: unknown, idx: number) => {
+            const item = (h && typeof h === 'object') ? (h as Record<string, unknown>) : {};
+            return {
+              turnNumber: typeof item.turnNumber === 'number' ? item.turnNumber : idx + 1,
+              instruction: typeof item.instruction === 'string' ? item.instruction.slice(0, 200) : '',
+              assessment: typeof item.assessment === 'string' ? item.assessment : 'uncertain',
+              status: typeof item.status === 'string' ? item.status : 'guide',
+              selectedCandidateText: typeof item.selectedCandidateText === 'string' ? item.selectedCandidateText.slice(0, 50) : null
+            };
+          })
         : [];
 
       // Run OCR Candidate Extraction

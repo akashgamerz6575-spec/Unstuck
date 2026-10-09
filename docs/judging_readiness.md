@@ -261,3 +261,25 @@ CMD ["node", "dist/server/server.js"]
 - [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) on header and footer with no fabricated metrics.
 - [x] **Live Render Deployment Verified:** Deployed on Render at [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/), with health endpoint `/healthz` returning HTTP 200, clean static asset delivery, and live Gemini multimodal analysis verified (`status: "guide"`, unselected range recognition).
 - [x] **Release Commit Deployed:** All release audit items and documentation updates pushed to `origin/main`.
+- [x] **Code Quality Hardening:** Deduplicated Gemini system prompts & response schemas into `shared/gemini-config.ts`, added strict boundary input guards on API and IPC interfaces, and established guaranteed capture window restoration on fatal errors.
+
+---
+
+## 8. Final Code-Quality & Boundary Hardening Pass
+
+To reinforce engineering rigor across the codebase ahead of final judging:
+
+1. **Deduplicated Gemini Prompt, Schema & Model Architecture (`shared/gemini-config.ts`):**
+   - Consolidated 140+ lines of duplicated prompt instructions and response schemas between `electron/gemini-coach.ts` and `server/gemini-service.ts` into a single canonical source of truth.
+   - Unified `resolveModelName()`, ensuring that `process.env.GEMINI_MODEL` is uniformly respected by both desktop and web clients rather than hardcoded in the Electron loop.
+   - Replaced raw `as any` response parsing with strongly-typed `GeminiApiResponse`, `GeminiApiCandidate`, and `GeminiApiPart` interfaces.
+
+2. **API & IPC Boundary Type Safety & Malformed Payload Guards:**
+   - In `server/server.ts`, updated `readJsonBody` to return `Promise<unknown>` with safe object guards (`asSafeObject`), protecting `/api/check` and `/api/session/reset` against `null` or primitive JSON inputs.
+   - In `server/server.ts`, hardened `history` array parsing against nullish or malformed entries, preventing unhandled 500 runtime exceptions.
+   - In `electron/main.ts`, strictly typed the `start-coaching` IPC listener to validate that `goal` is a non-empty string before setting session state.
+   - In `electron/main.ts`, guarded `window-minimize` and `window-close` listeners against destroyed window references (`!win.isDestroyed()`).
+
+3. **Capture Concealment & Error State Invariants (`electron/main.ts`):**
+   - Added a centralized `restoreCaptureWindows()` helper.
+   - Fixed an error-state defect where any exception during capture or pre-analysis left the coach panel or overlay orphaned in a hidden state; `restoreCaptureWindows()` is now guaranteed across all early-return and `catch` paths.
