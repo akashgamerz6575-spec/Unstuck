@@ -24,4 +24,14 @@ function copyRecursive(src, dest) {
 }
 
 copyRecursive(srcDir, destDir);
+
+// Copy example capture fixture if available
+const exampleSrc = path.resolve(process.cwd(), 'captures', 'calc-test.png');
+const exampleDestDir = path.resolve(destDir, 'assets');
+if (fs.existsSync(exampleSrc)) {
+  if (!fs.existsSync(exampleDestDir)) fs.mkdirSync(exampleDestDir, { recursive: true });
+  fs.copyFileSync(exampleSrc, path.join(exampleDestDir, 'calc-test.png'));
+  console.log('[Assets] Example screenshot fixture copied to dist/web/assets/calc-test.png');
+}
+
 console.log('[Assets] Static web companion assets, styles, and fonts copied to dist/web');

@@ -16,6 +16,7 @@ COPY server/ ./server/
 COPY web/ ./web/
 COPY electron/fonts/ ./electron/fonts/
 COPY scripts/ ./scripts/
+COPY captures/calc-test.png* ./captures/
 
 # Build TypeScript and copy static web assets
 RUN npm run build:web

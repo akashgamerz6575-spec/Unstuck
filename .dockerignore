@@ -24,8 +24,9 @@ build/
 *.dmg
 *.AppImage
 
-# Captures, recordings, and review screenshots
+# Captures, recordings, and review screenshots (allow single small example fixture)
 captures/
+!captures/calc-test.png
 screenshots/
 recordings/
 *.mp4
