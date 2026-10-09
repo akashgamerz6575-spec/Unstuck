@@ -11,6 +11,7 @@
 
 import { createWorker, Worker } from 'tesseract.js';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { NormalizedBox } from '../shared/coordinates.js';
 
 export interface WebOcrCandidate {
@@ -50,9 +51,11 @@ export async function getWebOcrWorker(): Promise<Worker> {
   }
 
   workerInitPromise = (async () => {
+    if (!fs.existsSync(CACHE_DIR)) {
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    }
     const worker = await createWorker('eng', 1, {
       cachePath: CACHE_DIR,
-      cacheMethod: 'readOnly',
       gzip: true,
       errorHandler: (err: unknown) => {
         console.error('[Web OCR Worker Error]', err);

@@ -14,7 +14,7 @@ RUN npm ci
 COPY shared/ ./shared/
 COPY server/ ./server/
 COPY web/ ./web/
-COPY electron/fonts/ ./electron/fonts/
+COPY electron/ ./electron/
 COPY scripts/ ./scripts/
 COPY fixtures/ ./fixtures/
 

@@ -3,7 +3,7 @@
 > **Target Platform:** Windows 11 Desktop (Electron) + Portable Web Companion (Node / Render / Railway)  
 > **Model Candidate:** `gemini-3.1-flash-lite` (default, low-thinking latency ~2.8s) / `gemini-3.5-flash-lite` / `gemini-3.8-flash`  
 > **Target Application Baseline:** LibreOffice Calc (creating a labelled horizontal bar chart from tabular data `A1:B5`)  
-> **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.93 MB** across 103 files; Git database: **~3.16 MB**; Total: **~7.09 MB**)  
+> **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.76 MB** across 104 files; Git database: **~3.07 MB**; Total: **~6.82 MB**)  
 > **Public Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)  
 > **Submission Deadline:** 9 October, 4:30 PM IST  
 
@@ -52,11 +52,15 @@ To verify that Gemini correctly identifies cells and formatting in the three-col
 - `fixtures/calc-three-column-formatted.png`
 
 > [!IMPORTANT]
-> **Synthetic Fixture Provenance & Status Disclosure:**
-> 1. **Synthetic Construction:** These fixtures were **synthetically edited using Pillow**, adding Column C (`Rate`) and numeric values onto an existing Calc base image, while keeping the horizontal bar chart visible to evaluate chart-completion isolation.
+> **Fixture Provenance & Manual Testing Disclosures:**
+> 1. **Synthetic Fixture Construction:** `fixtures/calc-three-column-unformatted.png` and `calc-three-column-formatted.png` were **synthetically edited using Pillow**, adding Column C (`Rate`) and numeric values onto an existing Calc base image, while keeping the horizontal bar chart visible to evaluate chart-completion isolation.
 > 2. **Synthetic Formatting:** In `calc-three-column-formatted.png`, the yellow cell fill on C5 was **synthetically applied using Pillow** (filling the cell bounds with `#FFFF00`), rather than applied by a user in LibreOffice Calc.
-> 3. **Live API Execution:** The test results below represent **live Gemini API verification on synthetic fixtures**, not fresh Calc captures from a running user application.
-> 4. **Manual Test Pending:** The **manual end-to-end desktop test remains Pending** until Akash conducts the live test and supplies actual results from a running LibreOffice Calc session.
+> 3. **Live API Execution on Synthetic Fixtures:** The test results below in Section C represent **live Gemini API verification on synthetic fixtures**, confirming cell identification and yellow fill detection.
+> 4. **Manual Live Desktop Demonstration on Real Calc:** Akash has manually demonstrated on a live LibreOffice Calc sheet on Windows 11:
+>    - Identification of 46000 in C2 after the table had been manually rearranged.
+>    - Step-by-step guidance to apply a yellow cell background fill.
+>    - A subsequent check correctly reporting `status: "complete"` and visually recognising the yellow fill.
+>    - *Scope Boundary:* This verifies that specific highlighting scenario on a live desktop application. It does not establish that Nori guided the preceding sorting/ranking task or works universally across arbitrary spreadsheet arrangements.
 
 #### Fixture Table Data:
 ```
@@ -180,14 +184,16 @@ During real-world end-to-end testing against Google Gemini APIs, several failure
 
 ### 3. Efficiency & Resource Footprint
 - **Repository Size Separation:**
-  - Tracked source and assets: **3,925,926 bytes (~3.93 MB across 103 files)**, well within the 5 MB target.
-  - Git database objects (`.git`): **3,160,539 bytes (~3.16 MB)**.
-  - Combined tracked files + git repository: **~7.09 MB**, strictly adhering to the < 10 MB budget.
+  - Tracked source and assets: **3,940,191 bytes (~3.76 MB across 104 files)**, well within the 5 MB target.
+  - Git database objects (`.git`): **3,214,109 bytes (~3.07 MB)**.
+  - Combined tracked files + git repository: **~6.82 MB**, strictly adhering to the < 10 MB budget.
 - **OCR Worker Reuse:** Tesseract OCR worker is initialized once and reused across capture cycles, avoiding memory leaks and spin-up delays.
 - **Lightweight Assets:** Typography hosted locally (*Manrope* and *DM Sans*, < 120 KB total); Nori character encoded as WebP at 191 KB (78% smaller than original PNG).
 
 ### 4. Testing
-- **Automated Test Results:** **83 passing unit tests** across 23 test suites (`npm test`, 0 failures).
+- **Automated Test Results:** **89 passing unit tests** across 25 test suites (`npm test`, 0 failures).
+  - Model response assembly, multi-part JSON formatting, and thought-part exclusion (`tests/model-response-diagnostics.unit.test.ts`).
+  - Network diagnostic classification and credential sanitization (`tests/model-response-diagnostics.unit.test.ts`).
   - Goal invalidation, chart isolation, and clarification contracts (`tests/goal-invalidation.unit.test.ts`).
   - Coordinate transformations and 125% DPI scaling math.
   - Candidate ID contract validation.
@@ -195,9 +201,9 @@ During real-world end-to-end testing against Google Gemini APIs, several failure
   - Session budget tracker and rate pacing.
   - Web server endpoints (`/healthz`, `/api/example`, `/api/examples`, `/api/check`, `/api/session/reset`).
 
-### 5. Render / Railway Deployment Configuration
+### 5. Render Web Service Deployment Configuration
 
-The web companion is completely containerized and portable for Cloud Run, Render, or Railway:
+The web companion is completely containerized and portable for Render:
 
 ```dockerfile
 # Stage 1: Build TypeScript and copy static assets
@@ -205,12 +211,13 @@ FROM node:20-slim AS builder
 WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm ci
-COPY server/ server/
-COPY electron/ electron/
-COPY web/ web/
-COPY fixtures/ fixtures/
-COPY scripts/ scripts/
-RUN npm run build
+COPY shared/ ./shared/
+COPY server/ ./server/
+COPY web/ ./web/
+COPY electron/ ./electron/
+COPY scripts/ ./scripts/
+COPY fixtures/ ./fixtures/
+RUN npm run build:web
 
 # Stage 2: Production runner
 FROM node:20-slim AS runner
@@ -226,25 +233,29 @@ ENV HOST=0.0.0.0
 CMD ["node", "dist/server/server.js"]
 ```
 
-#### Render / Railway Web Service Settings:
-- **Environment:** Node / Docker
-- **Build Command:** `npm ci && npm run build`
-- **Start Command:** `npm run start:web`
+#### Render Web Service Settings:
+- **Service Type:** Web Service
+- **Repository:** `https://github.com/akashgamerz6575-spec/Unstuck`
+- **Branch:** `main`
+- **Runtime:** Docker
+- **Dockerfile Path:** `Dockerfile`
+- **Build Context:** `.`
+- **Docker Command:** Default `CMD` (`node dist/server/server.js`)
 - **Health Check Endpoint:** `/healthz`
-- **Port:** `8080` (or dynamic `$PORT`)
-- **Required Secrets:** `GEMINI_API_KEY` (configured securely in Render/Railway dashboard environment variables)
+- **Instance Type:** Free Instance
+- **Required Secrets:** `GEMINI_API_KEY` (configured securely in Render dashboard environment variables)
 - **Optional Model Override:** `GEMINI_MODEL=gemini-3.1-flash-lite`
 
 ---
 
 ## 7. Submission Checklist & Repository Status
 
-- [x] **Repository Budget:** Tracked source is ~3.93 MB, Git objects are ~3.16 MB (Total ~7.09 MB < 10 MB).
+- [x] **Repository Budget:** Tracked source is ~3.76 MB, Git objects are ~3.07 MB (Total ~6.82 MB < 10 MB limit).
 - [x] **Single Branch Integrity:** All commits made directly on `main`. No auxiliary branches created.
 - [x] **Secret Isolation:** Zero credentials committed to git; `.env` is git-ignored and validated.
 - [x] **Changed Goal Regression:** Verified live with Google Gemini; covered by 7 unit tests.
 - [x] **Synthetic 3-Column Verification:** Live Gemini model verified on Pillow-edited 3-column fixtures (C5 identification, yellow fill recognition, chart isolation).
-- [ ] **Manual End-to-End Live Desktop Test (3-Column Scenario):** **PENDING** until Akash supplies actual manual test results from a running LibreOffice Calc session.
+- [x] **Manual Desktop Demonstration on Real Calc:** Akash verified cell 46000 in C2, yellow background guidance, and subsequent check confirming COMPLETE with yellow fill on a live Calc session.
 - [x] **Nori Character Asset:** Preserved approved character asset and visual features.
-- [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) added to desktop header, mobile header, and footer with no fabricated metrics.
-- [!] **Public Repository Notice:** The remote repository on GitHub does not yet contain this local correction milestone. Pushing remains deferred until Akash initiates submission.
+- [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) on header and footer with no fabricated metrics.
+- [x] **Release Commit Ready:** Local release audit completed and staged for push to origin/main.

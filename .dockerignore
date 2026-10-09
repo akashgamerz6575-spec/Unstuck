@@ -15,9 +15,8 @@ node_modules/
 .git/
 .github/
 
-# Desktop electron artifacts and native binaries
+# Desktop electron build outputs and native binaries
 dist/electron/
-electron/
 release/
 build/
 *.exe

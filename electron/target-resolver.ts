@@ -13,6 +13,7 @@
 
 import { createWorker, Worker } from 'tesseract.js';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 export interface BoundingBox {
   x: number;
@@ -55,9 +56,11 @@ export async function getTesseractWorker(): Promise<Worker> {
   }
 
   workerInitPromise = (async () => {
+    if (!fs.existsSync(CACHE_DIR)) {
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    }
     const worker = await createWorker('eng', 1, {
       cachePath: CACHE_DIR,
-      cacheMethod: 'readOnly',
       gzip: true,
       errorHandler: (err: unknown) => {
         console.error('[OCR Worker Error]', err);
