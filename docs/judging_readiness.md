@@ -3,7 +3,7 @@
 > **Target Platform:** Windows 11 Desktop (Electron) + Portable Web Companion (Node / Render / Railway)  
 > **Model Candidate:** `gemini-3.1-flash-lite` (default, low-thinking latency ~2.8s) / `gemini-3.5-flash-lite` / `gemini-3.8-flash`  
 > **Target Application Baseline:** LibreOffice Calc (creating a labelled horizontal bar chart from tabular data `A1:B5`)  
-> **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.75 MB** across 98 files; Git database: **~2.93 MB**; Total: **~6.68 MB**)  
+> **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.93 MB** across 103 files; Git database: **~3.16 MB**; Total: **~7.09 MB**)  
 > **Public Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)  
 > **Submission Deadline:** 9 October, 4:30 PM IST  
 
@@ -45,8 +45,20 @@ In our immediate prior progress report, an initial test of *"Highlight the large
    - **Uncertainty Guard:** If cell coordinates or text values cannot be determined with high confidence, Gemini is strictly instructed to return `status: "uncertain"` and `assessment: "uncertain"` rather than inventing an address.
    - **Formatting Verification Rule:** `status: "complete"` requires visible proof of the requested formatting (e.g. yellow cell fill) on the target cell. Merely seeing the target cell, the number, or an existing chart is never evidence of completion.
 
-### C. Verified Real-World 3-Column Execution (Live Gemini API Calls)
-We tested the actual three-column scenario on a fresh Calc fixture (`calc-three-column-unformatted.png`) with an existing horizontal bar chart visible to test chart isolation:
+### C. Live Gemini Verification on Synthetic 3-Column Fixtures
+
+To verify that Gemini correctly identifies cells and formatting in the three-column scenario without conflating cell columns, we tested the workflow against two synthetic fixtures created by editing an existing Calc screenshot using Pillow:
+- `fixtures/calc-three-column-unformatted.png`
+- `fixtures/calc-three-column-formatted.png`
+
+> [!IMPORTANT]
+> **Synthetic Fixture Provenance & Status Disclosure:**
+> 1. **Synthetic Construction:** These fixtures were **synthetically edited using Pillow**, adding Column C (`Rate`) and numeric values onto an existing Calc base image, while keeping the horizontal bar chart visible to evaluate chart-completion isolation.
+> 2. **Synthetic Formatting:** In `calc-three-column-formatted.png`, the yellow cell fill on C5 was **synthetically applied using Pillow** (filling the cell bounds with `#FFFF00`), rather than applied by a user in LibreOffice Calc.
+> 3. **Live API Execution:** The test results below represent **live Gemini API verification on synthetic fixtures**, not fresh Calc captures from a running user application.
+> 4. **Manual Test Pending:** The **manual end-to-end desktop test remains Pending** until Akash conducts the live test and supplies actual results from a running LibreOffice Calc session.
+
+#### Fixture Table Data:
 ```
 Department | Requests | Rate
 Library    | 42       | 56
@@ -56,8 +68,8 @@ Admissions | 55       | 46000
 ```
 Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."* (Expected target: C5 containing 46000).
 
-#### Turn 1: Initial Guidance on Unformatted Grid
-- **Input:** `fixtures/calc-three-column-unformatted.png`
+#### Turn 1: Initial Guidance on Synthetic Unformatted Grid
+- **Input:** `fixtures/calc-three-column-unformatted.png` (synthetic fixture)
 - **Result:**
   ```json
   {
@@ -69,10 +81,10 @@ Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."*
     "expectedOutcome": "Cell C5 should have a yellow background."
   }
   ```
-- **Outcome:** **Verified Correct.** Gemini correctly traversed the columns, identified 46000 in C5 (not C3), guided cell selection and toolbar Background Color, emitted `selectedCandidateId: null` (no fake outline), and was not distracted by the visible bar chart.
+- **Outcome:** **Verified on Synthetic Fixture.** Gemini correctly traversed the columns, identified 46000 in C5 (avoiding misattributing 68 to C3), guided cell selection and toolbar Background Color, emitted `selectedCandidateId: null` (no fake outline), and was not distracted by the visible bar chart.
 
-#### Turn 2: Progress Verification on Formatted Grid
-- **Input:** `fixtures/calc-three-column-formatted.png` (cell C5 filled with yellow `#FFFF00`)
+#### Turn 2: Progress Verification on Synthetic Formatted Grid
+- **Input:** `fixtures/calc-three-column-formatted.png` (synthetic fixture with C5 yellow fill applied via Pillow)
 - **Context:** Turn 1 history preserved; `previousInstruction` passed to evaluate progress.
 - **Result:**
   ```json
@@ -85,7 +97,8 @@ Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."*
     "expectedOutcome": "The largest numeric value (46000 in cell C5) is highlighted with a yellow background."
   }
   ```
-- **Outcome:** **Verified Correct.** Gemini detected the visible yellow fill on C5 and confirmed completion.
+- **Outcome:** **Verified on Synthetic Fixture.** Gemini detected the synthetic yellow fill on C5 and confirmed completion under preserved multi-turn history.
+
 
 ### D. Session Continuity & Anti-Race Protection
 1. **Preserving History on Fresh Screenshots:** In `web/app.ts`, uploading or replacing a screenshot under the *same* goal clears stale highlight overlays (`clearHighlight()`), but preserves `this.history` and `this.lastGuidance`. This enables multi-turn verification where Gemini checks if its previous instruction was completed.
@@ -117,17 +130,18 @@ Goal: *"Highlight the largest numeric value in B2:C5 with a yellow background."*
 To adhere strictly to truthfulness and avoid deceptive evaluation claims, we disclose the exact provenance of all evaluation fixtures and screenshots:
 
 ### A. Model Input Fixtures (`fixtures/`)
-For the web companion example selector and automated integration testing, four Calc fixtures are provided:
+For the web companion example selector, automated testing, and milestone verification, the following fixtures are provided:
 1. `fixtures/calc-clean-unselected.png` (97 KB): Step 1 — Table `A1:B5` visible in Calc with an unrelated cell (`C10`) focused.
 2. `fixtures/calc-clean-selected.png` (79 KB): Step 2 — Table `A1:B5` visibly highlighted/selected.
 3. `fixtures/calc-clean-pie-chart.png` (91 KB): Step 3 — User made an intentional deviation: generated a Pie chart instead of a horizontal Bar chart.
 4. `fixtures/calc-clean-bar-chart.png` (71 KB): Step 4 — Finished horizontal bar chart titled *"Requests by department"*.
+5. `fixtures/calc-three-column-unformatted.png` (76 KB): Synthetic 3-column table fixture created by programmatically editing an existing Calc capture using Pillow, adding Column C (`Rate`) and numeric values (`56`, `26`, `28000`, `46000`).
+6. `fixtures/calc-three-column-formatted.png` (76 KB): Synthetic fixture created using Pillow by applying a yellow fill (`#FFFF00`) to cell C5 (`46000`) to evaluate formatting completion detection.
 
 **Important Provenance Disclosure:**
-- These files are **processed fixtures derived from real Windows 11 Calc desktop captures**.
-- During the live desktop recording, the desktop coach panel occupied the bottom-right corner of the screen.
-- To prevent multimodal vision models (Gemini) from reading prior coaching text or answer hints directly from the image, the bottom-right coach region was replaced with reconstructed empty spreadsheet grid lines matching the surrounding Calc canvas.
-- These fixtures are strictly model-input test assets. They are **not** presented as untouched raw desktop captures.
+- Files 1–4 are **processed fixtures derived from real Windows 11 Calc desktop captures**. During the live desktop recording, the desktop coach panel occupied the bottom-right corner of the screen. To prevent multimodal vision models (Gemini) from reading prior coaching text or answer hints directly from the image, the bottom-right coach region was replaced with reconstructed empty spreadsheet grid lines matching the surrounding Calc canvas.
+- Files 5–6 are **synthetic test fixtures created using Pillow** to evaluate 3-column addressing and formatting verification without waiting for manual test execution. The yellow fill on C5 was applied synthetically via script, not by a user in LibreOffice Calc.
+- These fixtures are strictly model-input test assets. They are **not** presented as untouched raw desktop captures or evidence of manual user execution.
 
 ### B. Documentation Evidence Captures (`docs/images/`)
 Four live desktop execution screenshots are retained in `docs/images/` showing Unstuck in active Windows 11 coaching mode:
@@ -166,9 +180,9 @@ During real-world end-to-end testing against Google Gemini APIs, several failure
 
 ### 3. Efficiency & Resource Footprint
 - **Repository Size Separation:**
-  - Tracked source and assets: **3,753,547 bytes (~3.75 MB across 98 files)**, well within the 5 MB target.
-  - Git database objects (`.git`): **2,931,485 bytes (~2.93 MB)**.
-  - Combined tracked files + git repository: **~6.68 MB**, strictly adhering to the < 10 MB budget.
+  - Tracked source and assets: **3,925,926 bytes (~3.93 MB across 103 files)**, well within the 5 MB target.
+  - Git database objects (`.git`): **3,160,539 bytes (~3.16 MB)**.
+  - Combined tracked files + git repository: **~7.09 MB**, strictly adhering to the < 10 MB budget.
 - **OCR Worker Reuse:** Tesseract OCR worker is initialized once and reused across capture cycles, avoiding memory leaks and spin-up delays.
 - **Lightweight Assets:** Typography hosted locally (*Manrope* and *DM Sans*, < 120 KB total); Nori character encoded as WebP at 191 KB (78% smaller than original PNG).
 
@@ -225,10 +239,12 @@ CMD ["node", "dist/server/server.js"]
 
 ## 7. Submission Checklist & Repository Status
 
-- [x] **Repository Budget:** Tracked source is ~3.75 MB, Git objects are ~2.93 MB (Total ~6.68 MB < 10 MB).
+- [x] **Repository Budget:** Tracked source is ~3.93 MB, Git objects are ~3.16 MB (Total ~7.09 MB < 10 MB).
 - [x] **Single Branch Integrity:** All commits made directly on `main`. No auxiliary branches created.
 - [x] **Secret Isolation:** Zero credentials committed to git; `.env` is git-ignored and validated.
 - [x] **Changed Goal Regression:** Verified live with Google Gemini; covered by 7 unit tests.
+- [x] **Synthetic 3-Column Verification:** Live Gemini model verified on Pillow-edited 3-column fixtures (C5 identification, yellow fill recognition, chart isolation).
+- [ ] **Manual End-to-End Live Desktop Test (3-Column Scenario):** **PENDING** until Akash supplies actual manual test results from a running LibreOffice Calc session.
 - [x] **Nori Character Asset:** Preserved approved character asset and visual features.
 - [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) added to desktop header, mobile header, and footer with no fabricated metrics.
 - [!] **Public Repository Notice:** The remote repository on GitHub does not yet contain this local correction milestone. Pushing remains deferred until Akash initiates submission.
