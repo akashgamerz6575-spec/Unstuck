@@ -9,6 +9,7 @@
  * - Progress checks with fresh screenshots across session turns.
  * - Grounded bounding box rendering relative to displayed image.
  * - Error states, rate limit pacing feedback, and clean session reset.
+ * - Premium motion: entrance choreography, ribbon interaction, scan effects.
  */
 
 interface NormalizedBox {
@@ -54,6 +55,216 @@ interface SessionTurnRecord {
 
 type AppState = 'ready' | 'preview' | 'analysing' | 'guidance' | 'recovery' | 'uncertain' | 'complete' | 'error';
 
+/* ═══════════════════════════════════════════════
+   Motion Controller
+   ═══════════════════════════════════════════════ */
+
+class MotionController {
+  private prefersReducedMotion: boolean;
+  private noriParallaxWrap: HTMLElement | null;
+  private noriStageWrapper: HTMLElement | null;
+  private noriEntranceWrap: HTMLElement | null;
+  private noriSwayWrap: HTMLElement | null;
+  private noriFloatWrap: HTMLElement | null;
+  private heroSection: HTMLElement | null;
+  private heroObserver: IntersectionObserver | null = null;
+  private isTouchDevice: boolean;
+  private isHeroVisible = true;
+
+  constructor() {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.prefersReducedMotion = mq.matches;
+    mq.addEventListener('change', (e) => { this.prefersReducedMotion = e.matches; });
+
+    this.noriParallaxWrap = document.getElementById('nori-parallax');
+    this.noriStageWrapper = document.querySelector('.nori-stage-wrapper');
+    this.noriEntranceWrap = document.querySelector('.nori-entrance-wrap');
+    this.noriSwayWrap = document.querySelector('.nori-sway-wrap');
+    this.noriFloatWrap = document.querySelector('.nori-float-wrap');
+    this.heroSection = document.getElementById('hero');
+    this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }
+
+  /** Run deliberate page entrance sequence */
+  playEntrance(): void {
+    if (this.prefersReducedMotion) {
+      // Immediately reveal all in static composed layout
+      document.querySelectorAll('.entrance-nav, .entrance-lettering, .nori-entrance-wrap, .entrance-bubble, .entrance-copy')
+        .forEach(el => {
+          (el as HTMLElement).style.opacity = '1';
+          (el as HTMLElement).style.transform = 'none';
+          (el as HTMLElement).style.clipPath = 'none';
+        });
+      if (this.noriFloatWrap) this.noriFloatWrap.classList.add('settled');
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      // 0–400 ms: oversized lettering reveals through a short upward mask
+      document.querySelectorAll('.entrance-nav, .entrance-lettering')
+        .forEach(el => el.classList.add('reveal'));
+
+      // 250–1100 ms: Nori rises ~40px, fades in and scales from 0.94 to 1
+      if (this.noriEntranceWrap) {
+        this.noriEntranceWrap.classList.add('reveal');
+      }
+
+      // 1000–1600 ms: a short welcoming sway settles
+      setTimeout(() => {
+        if (this.noriSwayWrap) {
+          this.noriSwayWrap.classList.add('swaying');
+        }
+      }, 1000);
+
+      // 1300–1900 ms: the welcome bubble and supporting content appear
+      setTimeout(() => {
+        document.querySelectorAll('.entrance-bubble, .entrance-copy')
+          .forEach(el => el.classList.add('reveal'));
+      }, 1300);
+
+      // 1900 ms onwards: start gentle idle float
+      setTimeout(() => {
+        if (this.noriFloatWrap) {
+          this.noriFloatWrap.classList.add('settled');
+        }
+      }, 1900);
+    });
+  }
+
+  /** Set up IntersectionObservers for scroll reveals */
+  initScrollReveals(): void {
+    if (this.prefersReducedMotion) {
+      document.querySelectorAll('.workspace-reveal, .explainer-reveal')
+        .forEach(el => el.classList.add('revealed'));
+      return;
+    }
+
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15 });
+
+    document.querySelectorAll('.workspace-reveal, .explainer-reveal')
+      .forEach(el => revealObserver.observe(el));
+
+    // Hero visibility tracking: pause Nori animation when offscreen
+    if (this.heroSection) {
+      this.heroObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          this.isHeroVisible = entry.isIntersecting;
+          if (this.noriStageWrapper) {
+            this.noriStageWrapper.classList.toggle('offscreen', !entry.isIntersecting);
+          }
+        });
+      }, { threshold: 0.05 });
+      this.heroObserver.observe(this.heroSection);
+    }
+
+    // Tab visibility: pause Nori animation when tab is hidden
+    document.addEventListener('visibilitychange', () => {
+      if (this.noriStageWrapper) {
+        this.noriStageWrapper.classList.toggle('offscreen', document.hidden);
+      }
+    });
+  }
+
+  /** Pointer tracking for gentle desktop parallax */
+  initNoriPointerTracking(): void {
+    if (this.prefersReducedMotion || this.isTouchDevice || !this.noriParallaxWrap || !this.heroSection) return;
+
+    const parallaxEl = this.noriParallaxWrap;
+    const heroEl = this.heroSection;
+
+    heroEl.addEventListener('mousemove', (e: MouseEvent) => {
+      if (!this.isHeroVisible) return;
+
+      const rect = heroEl.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (e.clientX - cx) / rect.width;
+      const dy = (e.clientY - cy) / rect.height;
+
+      // Restrained tilt and subtle translation
+      const rotateY = dx * 2.5;
+      const rotateX = -dy * 2.0;
+      const translateX = dx * 10;
+      const translateY = dy * 8;
+
+      parallaxEl.style.transform = 
+        `perspective(800px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translate(${translateX.toFixed(1)}px, ${translateY.toFixed(1)}px)`;
+    });
+
+    heroEl.addEventListener('mouseleave', () => {
+      parallaxEl.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg) translate(0px, 0px)';
+    });
+  }
+
+  /** Add scan line effect during analysis */
+  showScanLine(previewWrapper: HTMLElement): void {
+    if (this.prefersReducedMotion) return;
+
+    // Remove existing scan lines
+    previewWrapper.querySelectorAll('.scan-line').forEach(el => el.remove());
+
+    const scanLine = document.createElement('div');
+    scanLine.className = 'scan-line';
+    previewWrapper.appendChild(scanLine);
+
+    // Auto-remove after animation
+    scanLine.addEventListener('animationend', () => scanLine.remove());
+  }
+
+  /** Show/hide analysis progress bar */
+  setAnalysisProgress(show: boolean): void {
+    const el = document.getElementById('analysis-progress');
+    if (el) el.style.display = show ? 'block' : 'none';
+  }
+
+  /** Animate coach content transition */
+  animateCoachContent(): void {
+    if (this.prefersReducedMotion) return;
+
+    const instructionBox = document.getElementById('instruction-box');
+    const observationBox = document.getElementById('observation-box');
+
+    [instructionBox, observationBox].forEach(box => {
+      if (box) {
+        box.classList.remove('coach-content-transition');
+        void box.offsetWidth; // Force reflow
+        box.classList.add('coach-content-transition');
+      }
+    });
+  }
+
+  /** Animate recovery box entrance */
+  animateRecoveryEntrance(): void {
+    if (this.prefersReducedMotion) return;
+
+    const recoveryBox = document.getElementById('recovery-box');
+    if (recoveryBox) {
+      recoveryBox.classList.remove('entering');
+      void recoveryBox.offsetWidth;
+      recoveryBox.classList.add('entering');
+    }
+  }
+
+  /** Set panel indicator analysis state */
+  setPanelIndicatorAnalysing(active: boolean): void {
+    const indicator = document.getElementById('panel-indicator');
+    if (indicator) {
+      indicator.classList.toggle('analysing', active);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   Main Application
+   ═══════════════════════════════════════════════ */
+
 class UnstuckWebApp {
   private state: AppState = 'ready';
   private sessionId: string;
@@ -68,6 +279,9 @@ class UnstuckWebApp {
   private lastGuidance: ValidatedGuidance | null = null;
   private history: SessionTurnRecord[] = [];
 
+  // Motion controller
+  private motion: MotionController;
+
   // DOM Elements
   private dropzone = document.getElementById('dropzone') as HTMLElement;
   private fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -81,7 +295,8 @@ class UnstuckWebApp {
 
   private btnFreshScreenshot = document.getElementById('btn-fresh-screenshot') as HTMLButtonElement;
   private btnClearImage = document.getElementById('btn-clear-image') as HTMLButtonElement;
-  private btnLoadCalcExample = document.getElementById('btn-load-calc-example') as HTMLButtonElement;
+  private btnLoadCalcExample = document.getElementById('btn-load-calc-example') as HTMLButtonElement | null;
+  private scenarioQuickLinks = document.getElementById('scenario-quick-links') as HTMLElement | null;
   private btnHeroExample = document.getElementById('btn-hero-example') as HTMLButtonElement;
   private btnPresetChart = document.getElementById('btn-preset-chart') as HTMLButtonElement;
   private btnAction = document.getElementById('btn-action') as HTMLButtonElement;
@@ -105,9 +320,15 @@ class UnstuckWebApp {
 
   constructor() {
     this.sessionId = this.getOrCreateSessionId();
+    this.motion = new MotionController();
     this.initEvents();
     this.updateBudgetDisplay();
     this.checkServerHealth();
+
+    // Choreographed entrance
+    this.motion.playEntrance();
+    this.motion.initScrollReveals();
+    this.motion.initNoriPointerTracking();
   }
 
   private getOrCreateSessionId(): string {
@@ -169,11 +390,47 @@ class UnstuckWebApp {
       this.showToast('Tested LibreOffice Calc task preset loaded.');
     });
 
-    this.btnLoadCalcExample.addEventListener('click', () => this.loadCalcExample());
-    this.btnHeroExample.addEventListener('click', () => {
-      this.loadCalcExample();
+    if (this.btnLoadCalcExample) {
+      this.btnLoadCalcExample.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.loadCalcExample('ready');
+      });
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('.scenario-chip, .quick-chip').forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const scenario = chip.dataset.scenario || 'ready';
+        this.loadCalcExample(scenario);
+      });
+    });
+
+    // Smooth scroll helper with sticky header offset
+    const scrollToWorkspace = () => {
+      document.querySelectorAll('.workspace-reveal').forEach(el => el.classList.add('revealed'));
       const ws = document.getElementById('workspace');
-      if (ws) ws.scrollIntoView({ behavior: 'smooth' });
+      if (ws) {
+        const headerOffset = 76;
+        const elementPosition = ws.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    const btnHeroTry = document.getElementById('btn-hero-try');
+    if (btnHeroTry) {
+      btnHeroTry.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollToWorkspace();
+      });
+    }
+
+    this.btnHeroExample.addEventListener('click', () => {
+      this.loadCalcExample('ready');
+      scrollToWorkspace();
     });
 
     // Toolbar buttons
@@ -193,7 +450,8 @@ class UnstuckWebApp {
         const data = await res.json();
         const statusEl = document.getElementById('system-status-text');
         if (statusEl) {
-          statusEl.textContent = data.hasKeyConfigured ? 'Ready (Gemini Active)' : 'API Key Pending';
+          // Truthful service status: distinguish configured key from verified live availability
+          statusEl.textContent = data.hasKeyConfigured ? 'Ready (Key Configured)' : 'API Key Pending';
         }
       }
     } catch {
@@ -228,10 +486,10 @@ class UnstuckWebApp {
     reader.readAsDataURL(file);
   }
 
-  private async loadCalcExample(): Promise<void> {
-    this.showToast('Loading verified LibreOffice Calc capture…');
+  private async loadCalcExample(scenario: string = 'ready'): Promise<void> {
+    this.showToast('Loading clean LibreOffice Calc fixture…');
     try {
-      const res = await fetch('/api/example');
+      const res = await fetch(`/api/example?scenario=${encodeURIComponent(scenario)}`);
       const data = await res.json();
       if (!data.hasExample) {
         this.showToast(data.message || 'Example screenshot not found on server.');
@@ -239,25 +497,39 @@ class UnstuckWebApp {
       }
 
       const dataUri = `data:${data.mimeType};base64,${data.imageBase64}`;
-      this.setImageData(dataUri, data.mimeType, 'Example: Calc Bar Chart Fixture');
+      const label = data.label || 'Calc Fixture';
+      this.setImageData(dataUri, data.mimeType, `Clean Fixture: ${label}`);
       if (data.goal) {
         this.goalInput.value = data.goal;
       }
-      this.showToast('Verified Calc fixture loaded. Ready for real AI guidance.');
+      this.showToast(`${label} loaded (clean screenshot, no coach overlays).`);
     } catch (err) {
       this.showToast('Failed to fetch example screenshot.');
     }
   }
 
   private setImageData(dataUri: string, mime: 'image/png' | 'image/jpeg', metaLabel: string): void {
+    document.querySelectorAll('.workspace-reveal').forEach(el => el.classList.add('revealed'));
     this.imageBase64 = dataUri;
     this.imageMime = mime;
+
+    // Image arrival animation
+    this.previewImg.classList.remove('arriving');
+    this.previewImg.onload = () => {
+      this.previewImg.classList.add('arriving');
+    };
     this.previewImg.src = dataUri;
+    if (this.previewImg.complete) {
+      this.previewImg.classList.add('arriving');
+    }
 
     this.dropzone.style.display = 'none';
     this.previewContainer.style.display = 'flex';
     this.btnFreshScreenshot.style.display = 'inline-block';
     this.btnClearImage.style.display = 'inline-block';
+    if (this.scenarioQuickLinks) {
+      this.scenarioQuickLinks.style.display = 'inline-flex';
+    }
     this.imageMetaBadge.textContent = metaLabel;
 
     // Clear previous highlight on new image load
@@ -283,6 +555,9 @@ class UnstuckWebApp {
     this.previewContainer.style.display = 'none';
     this.btnFreshScreenshot.style.display = 'none';
     this.btnClearImage.style.display = 'none';
+    if (this.scenarioQuickLinks) {
+      this.scenarioQuickLinks.style.display = 'none';
+    }
     this.imageMetaBadge.textContent = 'No image loaded';
     this.candidateCountBadge.style.display = 'none';
     this.canvasFooterTip.textContent = 'Upload a screenshot of your active application to begin.';
@@ -350,6 +625,15 @@ class UnstuckWebApp {
 
     const previousInstruction = this.lastGuidance ? this.lastGuidance.instruction : null;
 
+    // Motion: show analysis progress and scan line
+    this.motion.setAnalysisProgress(true);
+    this.motion.setPanelIndicatorAnalysing(true);
+
+    const previewWrapper = document.getElementById('preview-wrapper');
+    if (previewWrapper) {
+      this.motion.showScanLine(previewWrapper);
+    }
+
     try {
       const response = await fetch('/api/check', {
         method: 'POST',
@@ -372,6 +656,10 @@ class UnstuckWebApp {
       }
 
       const data: CheckResponse = await response.json();
+
+      // Motion: hide analysis indicators
+      this.motion.setAnalysisProgress(false);
+      this.motion.setPanelIndicatorAnalysing(false);
 
       if (!response.ok || !data.success || !data.guidance) {
         if (response.status === 429) {
@@ -416,11 +704,14 @@ class UnstuckWebApp {
         selectedCandidateText: guidance.targetLabel
       });
 
+      // Animate coach content transition
+      this.motion.animateCoachContent();
+
       // Dispatch state based on model response status
       if (guidance.status === 'complete') {
         this.setState('complete');
         this.clearHighlight();
-        this.instructionStepTag.textContent = 'Complete';
+        this.instructionStepTag.textContent = '✓ Complete';
         this.instructionText.textContent = guidance.instruction;
         this.observationText.textContent = guidance.observation;
         this.canvasFooterTip.textContent = 'Workflow verified! Your chart is visibly inserted in the spreadsheet.';
@@ -430,6 +721,9 @@ class UnstuckWebApp {
         this.instructionText.textContent = guidance.instruction;
         this.recoveryText.textContent = guidance.reason || 'Observed deviation from expected chart path. Let us correct it.';
         this.observationText.textContent = guidance.observation;
+
+        // Animate recovery entrance
+        this.motion.animateRecoveryEntrance();
 
         if (guidance.hasTargetHighlight && guidance.targetBox) {
           this.renderGroundedHighlight(guidance.targetBox, guidance.targetLabel || 'Target');
@@ -460,6 +754,9 @@ class UnstuckWebApp {
         this.canvasFooterTip.textContent = 'Execute this step, then upload a fresh screenshot to verify progress.';
       }
     } catch (err: unknown) {
+      this.motion.setAnalysisProgress(false);
+      this.motion.setPanelIndicatorAnalysing(false);
+
       if (err instanceof Error && err.name === 'AbortError') {
         this.setState('preview');
         this.showToast('Analysis cancelled.');
@@ -536,7 +833,7 @@ class UnstuckWebApp {
       case 'analysing':
         this.statusBadge.textContent = 'Analysing';
         this.busyBox.style.display = 'flex';
-        this.busyLabel.textContent = 'Reading your screen…';
+        this.busyLabel.textContent = 'Analysing your screenshot…';
         this.btnAction.disabled = true;
         this.btnCancel.style.display = 'inline-block';
         break;

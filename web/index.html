@@ -6,11 +6,12 @@
   <title>Unstuck — Find your next move.</title>
   <meta name="description" content="A screen-aware AI coach for the moment you get stuck in complex desktop software. Grounded visual guidance and mistake recovery.">
   <link rel="stylesheet" href="./styles/app.css">
+  <link rel="stylesheet" href="./styles/motion.css">
 </head>
 <body>
 
   <!-- Site Navigation -->
-  <header class="site-header">
+  <header class="site-header entrance-nav">
     <div class="container nav-container">
       <div class="brand-group">
         <div class="brand-dot"></div>
@@ -31,103 +32,91 @@
           <span id="system-status-text">Ready</span>
         </div>
       </div>
-    </div>
   </header>
+  <!-- Hero Section: Cinematic Nori Stage -->
+  <section class="hero-section" id="hero">
+    <div class="hero-stage">
+      <!-- Curved Horizon & Atmospheric Lighting -->
+      <div class="hero-lighting" aria-hidden="true">
+        <div class="horizon-curve"></div>
+        <div class="ambient-blue-glow"></div>
+        <div class="ambient-amber-glow"></div>
+        <div class="horizon-surface-light"></div>
+      </div>
 
-  <!-- Hero Section -->
-  <section class="hero-section">
-    <div class="container hero-grid">
-      <div class="hero-content">
-        <div class="hero-badge">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/>
-            <path d="M7 4.5v3M7 9.5h.01" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-          Grounded Multimodal Guidance
+      <!-- Enormous UNSTUCK Lettering (Behind Nori) -->
+      <div class="hero-backdrop-text-wrap" aria-hidden="true">
+        <div class="hero-backdrop-text entrance-lettering">UNSTUCK</div>
+      </div>
+
+      <!-- Central Companion: Nori Stage with Nested Wrappers for Coordinated Motion -->
+      <div class="nori-stage-wrapper">
+        <div class="nori-parallax-wrap" id="nori-parallax">
+          <div class="nori-entrance-wrap">
+            <div class="nori-sway-wrap">
+              <div class="nori-float-wrap">
+                <picture class="nori-picture">
+                  <source srcset="./assets/nori.webp" type="image/webp">
+                  <img 
+                    src="./assets/nori.png" 
+                    alt="Nori, your Unstuck desktop companion" 
+                    class="nori-character-img"
+                    width="1254" 
+                    height="1254"
+                    loading="eager"
+                    decoding="async"
+                  >
+                </picture>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <h1 class="hero-title">Find your next move.</h1>
-        <p class="hero-subtitle">A screen-aware coach for the moment you get stuck in complex desktop software. Observe, guide, and recover without guess-work.</p>
-
-        <div class="hero-buttons">
-          <a href="#workspace" class="btn-primary" id="btn-hero-try">
-            <span>Try Unstuck</span>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3.5l5 4.5-5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </a>
-          <button class="btn-secondary" id="btn-hero-example">
-            <span>Explore an example</span>
-          </button>
+        <!-- Welcome Greeting Bubble -->
+        <div class="nori-speech-bubble entrance-bubble" id="nori-speech-bubble" role="status">
+          <div class="speech-bubble-dot"></div>
+          <span class="speech-bubble-text">Hi, I’m Nori. Let’s find your next move.</span>
         </div>
       </div>
 
-      <!-- Sculptural Ribbon Metaphor (Knot to Clear Path) -->
-      <div class="sculpture-wrapper" aria-hidden="true">
-        <svg class="sculpture-svg" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="knotGlowWeb" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#A6B68F" stop-opacity="0.25"/>
-              <stop offset="70%" stop-color="#17211B" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="knotGradWeb" x1="80" y1="360" x2="260" y2="200" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#8A4832"/>
-              <stop offset="45%" stop-color="#D58B64"/>
-              <stop offset="100%" stop-color="#E2A684"/>
-            </linearGradient>
-            <linearGradient id="transGradWeb" x1="200" y1="280" x2="340" y2="160" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#D58B64"/>
-              <stop offset="50%" stop-color="#C4B892"/>
-              <stop offset="100%" stop-color="#A6B68F"/>
-            </linearGradient>
-            <linearGradient id="clearGradWeb" x1="280" y1="200" x2="440" y2="80" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#A6B68F"/>
-              <stop offset="60%" stop-color="#C7D6B0"/>
-              <stop offset="100%" stop-color="#F4F1E8"/>
-            </linearGradient>
-            <filter id="softGlowWeb" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="8" result="blur"/>
-              <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-            </filter>
-          </defs>
-
-          <!-- Ambient Backdrop Glow -->
-          <circle cx="250" cy="250" r="190" fill="url(#knotGlowWeb)"/>
-
-          <!-- Layer 1: Confused Knotted Loops (Stuck) -->
-          <path d="M 120 340 C 60 270, 110 170, 190 200 C 270 230, 240 360, 160 360 C 100 360, 90 290, 150 250" 
-                stroke="#543026" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
-          <path d="M 140 370 C 80 320, 100 200, 190 210 C 280 220, 260 380, 170 370 C 110 360, 100 270, 180 230" 
-                stroke="url(#knotGradWeb)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M 175 225 C 230 250, 240 330, 180 350 C 130 360, 120 300, 160 260" 
-                stroke="url(#knotGradWeb)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-
-          <!-- Layer 2: Unwinding Realization -->
-          <path d="M 180 230 C 220 200, 240 290, 280 260 C 310 230, 300 180, 330 160" 
-                stroke="url(#transGradWeb)" stroke-width="16" stroke-linecap="round"/>
-
-          <!-- Layer 3: Clear Path to Completion -->
-          <path d="M 310 170 C 350 130, 390 120, 440 90" 
-                stroke="url(#clearGradWeb)" stroke-width="18" stroke-linecap="round" filter="url(#softGlowWeb)"/>
-          <path d="M 330 155 C 370 120, 400 108, 450 78" 
-                stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
-          <circle cx="440" cy="90" r="7" fill="#F4F1E8" filter="url(#softGlowWeb)"/>
-          <circle cx="440" cy="90" r="3.5" fill="#111B15"/>
-        </svg>
+      <!-- Supporting Content in Clear Space -->
+      <div class="hero-content-wrap">
+        <div class="container hero-content-container">
+          <div class="hero-copy-card entrance-copy">
+            <h1 class="hero-headline">Your screen. One clear next move.</h1>
+            <p class="hero-subcopy">Show Nori where you’re stuck. Get guidance, check your progress, and recover from a wrong turn.</p>
+            
+            <div class="hero-actions">
+              <a href="#workspace" class="btn-primary" id="btn-hero-try">
+                <span>Try Unstuck</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 3.5l5 4.5-5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </a>
+              <button class="btn-secondary" id="btn-hero-example" type="button">
+                <span>Explore an example</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Interactive Workspace Section -->
   <section class="workspace-section" id="workspace">
-    <div class="container workspace-grid">
+    <div class="container workspace-intro">
+      <h2 class="workspace-heading">Your screen. Your next move.</h2>
+      <p class="workspace-subheading">Upload a screenshot or choose an example state to test grounded vision guidance and mistake recovery.</p>
+    </div>
+    <div class="container workspace-grid workspace-reveal">
 
       <!-- Left Column: Screenshot Canvas -->
       <div class="canvas-card">
         <header class="canvas-header">
           <div class="canvas-title-group">
             <div class="canvas-step-number" id="canvas-step-num">1</div>
-            <h2 class="canvas-title" id="canvas-card-title">Screenshot Canvas</h2>
+            <h2 class="canvas-title" id="canvas-card-title">Your screen</h2>
           </div>
           <div class="canvas-meta-chips">
             <span class="canvas-badge" id="image-meta-badge">No image loaded</span>
@@ -136,6 +125,9 @@
         </header>
 
         <div class="canvas-body" id="canvas-dropzone-container">
+          <!-- Analysis progress bar (hidden until analysis) -->
+          <div class="analysis-progress" id="analysis-progress" style="display: none;"></div>
+
           <!-- Dropzone State -->
           <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload screenshot dropzone">
             <div class="dropzone-icon">
@@ -146,9 +138,15 @@
             </div>
             <h3 class="dropzone-title">Drop your screenshot here</h3>
             <p class="dropzone-subtitle">Click to browse or paste from clipboard (Ctrl+V). PNG or JPEG up to 8 MiB.</p>
-            <button class="dropzone-example-btn" id="btn-load-calc-example" type="button">
-              Or load tested LibreOffice Calc capture
-            </button>
+            <div class="dropzone-scenarios" id="dropzone-scenarios">
+              <span class="dropzone-scenarios-label">Clean Calc fixtures (unbiased vision):</span>
+              <div class="scenario-chips">
+                <button class="scenario-chip" data-scenario="ready" type="button" title="Clean Calc capture with table unselected">Start</button>
+                <button class="scenario-chip" data-scenario="selected" type="button" title="Clean Calc capture with table selected">Data selected</button>
+                <button class="scenario-chip" data-scenario="recovery" type="button" title="Clean Calc capture with pie chart">Wrong chart</button>
+                <button class="scenario-chip" data-scenario="complete" type="button" title="Clean Calc capture with horizontal bar chart">Finished chart</button>
+              </div>
+            </div>
             <input type="file" id="file-input" class="file-input" accept="image/png, image/jpeg" aria-label="Screenshot file input">
           </div>
 
@@ -162,6 +160,13 @@
         </div>
 
         <footer class="canvas-footer">
+          <div class="scenario-quick-links" id="scenario-quick-links" style="display: none;">
+            <span class="quick-links-label">Clean stage:</span>
+            <button class="quick-chip" data-scenario="ready" type="button" title="Step 1: Table unselected">Start</button>
+            <button class="quick-chip" data-scenario="selected" type="button" title="Step 2: Table selected">Data selected</button>
+            <button class="quick-chip" data-scenario="recovery" type="button" title="Mistake: Pie chart recovery">Wrong chart</button>
+            <button class="quick-chip" data-scenario="complete" type="button" title="Completion: Bar chart">Finished chart</button>
+          </div>
           <span class="canvas-footer-tip" id="canvas-footer-tip">Upload a screenshot of your active application to begin.</span>
           <div class="canvas-actions">
             <button class="btn-subtle" id="btn-fresh-screenshot" style="display: none;" title="Replace current screenshot with a fresh one">
@@ -174,12 +179,17 @@
         </footer>
       </div>
 
-      <!-- Right Column: Warm Paper Coach Panel -->
+      <!-- Right Column: Readable Warm Paper Coach Panel -->
       <aside class="coach-panel" id="coach-panel">
         <header class="panel-header">
           <div class="panel-brand">
-            <div class="panel-indicator" id="panel-indicator"></div>
-            <h2 class="panel-title">Unstuck Coach</h2>
+            <picture class="coach-avatar-picture">
+              <source srcset="./assets/nori-portrait.webp" type="image/webp">
+              <img src="./assets/nori-portrait.png" alt="Nori" width="36" height="36" class="coach-avatar-img">
+            </picture>
+            <div class="panel-brand-text">
+              <h2 class="panel-title">Nori · Your guide</h2>
+            </div>
           </div>
           <span class="status-badge ready" id="status-badge">Ready</span>
         </header>
@@ -204,7 +214,7 @@
         <!-- Busy / Analysing Indicator -->
         <div class="busy-box" id="busy-box">
           <div class="busy-spinner"></div>
-          <span class="busy-label" id="busy-label">Reading your screen…</span>
+          <span class="busy-label" id="busy-label">Analysing your screenshot…</span>
         </div>
 
         <!-- Dominant Actionable Instruction Box -->
@@ -261,7 +271,7 @@
   </section>
 
   <!-- Explainer Section: Tested Workflow & Architecture -->
-  <section class="explainer-section" id="workflow-explainer">
+  <section class="explainer-section explainer-reveal" id="workflow-explainer">
     <div class="container">
       <h2 class="explainer-title">The Tested Workflow</h2>
       <p class="explainer-subtitle">Unstuck is validated against the LibreOffice Calc bar chart workflow. The coach verifies every action through screen vision and local OCR candidate grounding.</p>

@@ -1,10 +1,14 @@
 /**
  * Unstuck - Web Review & Screen Capture Harness
  * 
- * Captures actual website screenshots at desktop (1440x960) and mobile (390x844) widths
+ * Captures actual website screenshots at:
+ * - Large Desktop (1440x900)
+ * - Ordinary Laptop (1280x800)
+ * - Mobile Portrait (390x844)
+ * - Reduced Motion mode
  * using Electron's native webContents.capturePage().
  * 
- * Saves pristine screenshots into git-ignored captures/web-review/
+ * Saves screenshots into git-ignored captures/web-review/
  */
 
 import { app, BrowserWindow } from 'electron';
@@ -21,6 +25,18 @@ if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
+async function waitForPaint(win) {
+  await win.webContents.executeJavaScript(`
+    new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(resolve, 250);
+        });
+      });
+    })
+  `);
+}
+
 app.on('window-all-closed', (e) => {
   e.preventDefault();
 });
@@ -30,10 +46,10 @@ app.whenReady().then(async () => {
   const { session } = await import('electron');
   await session.defaultSession.clearCache();
 
-  // 1. Desktop Viewport (1440 x 1300) to capture hero and interactive workspace
+  // 1. Large Desktop Window (1440 x 1800)
   const desktopWin = new BrowserWindow({
     width: 1440,
-    height: 1300,
+    height: 1800,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -42,37 +58,32 @@ app.whenReady().then(async () => {
   });
 
   await desktopWin.loadURL('http://localhost:8080');
-  await new Promise((res) => setTimeout(res, 800)); // Wait for fonts and CSS
+  await new Promise((res) => setTimeout(res, 2200)); // Wait for entrance animations and fonts
+  await waitForPaint(desktopWin);
 
-  // Capture 1: Desktop Hero & Ribbon
-  const img1 = await desktopWin.webContents.capturePage();
+  // Capture 1: Large Desktop Hero (Nori, lettering, speech bubble, copy & CTAs)
+  const img1 = await desktopWin.webContents.capturePage({ x: 0, y: 0, width: 1440, height: 860 });
   fs.writeFileSync(path.join(outDir, '01-web-desktop-hero.png'), img1.toPNG());
   console.log('  ✔ Saved 01-web-desktop-hero.png');
 
-  // Capture 2: Desktop Workspace with Loaded Capture
+  // Click "Explore an example" in the hero, which loads clean start fixture and scrolls to workspace
   await desktopWin.webContents.executeJavaScript(`
-    new Promise((resolve) => {
-      const btn = document.getElementById('btn-load-calc-example');
+    (() => {
+      const btn = document.getElementById('btn-hero-example');
       if (btn) btn.click();
-      setTimeout(() => {
-        const ws = document.getElementById('workspace');
-        if (ws) {
-          const top = ws.getBoundingClientRect().top + window.pageYOffset;
-          window.scrollTo(0, top - 40);
-        }
-        setTimeout(resolve, 500);
-      }, 500);
-    })
+    })()
   `);
-  await new Promise((res) => setTimeout(res, 600));
+  await new Promise((res) => setTimeout(res, 1400));
+  await waitForPaint(desktopWin);
 
-  const img2 = await desktopWin.webContents.capturePage();
+  // Capture 2: Desktop Workspace with Loaded Capture
+  const img2 = await desktopWin.webContents.capturePage({ x: 0, y: 68, width: 1440, height: 860 });
   fs.writeFileSync(path.join(outDir, '02-web-desktop-workspace.png'), img2.toPNG());
   console.log('  ✔ Saved 02-web-desktop-workspace.png');
 
   // Simulate Guidance Step state on desktop with grounded highlight
   await desktopWin.webContents.executeJavaScript(`
-    new Promise((resolve) => {
+    (() => {
       const tag = document.getElementById('instruction-step-tag');
       const text = document.getElementById('instruction-text');
       const obs = document.getElementById('observation-text');
@@ -89,7 +100,6 @@ app.whenReady().then(async () => {
         badge.className = 'status-badge step';
       }
 
-      // Draw grounded highlight on Insert menu
       if (overlay) {
         overlay.innerHTML = \`
           <div class="target-bracket" style="top: 7.2%; left: 11.5%; width: 4.8%; height: 2.6%;">
@@ -97,23 +107,17 @@ app.whenReady().then(async () => {
           </div>
         \`;
       }
-
-      const ws = document.getElementById('workspace');
-      if (ws) {
-        const top = ws.getBoundingClientRect().top + window.pageYOffset;
-        window.scrollTo(0, top - 40);
-      }
-      setTimeout(resolve, 400);
-    })
+    })()
   `);
+  await waitForPaint(desktopWin);
 
-  const img3 = await desktopWin.webContents.capturePage();
+  const img3 = await desktopWin.webContents.capturePage({ x: 0, y: 68, width: 1440, height: 860 });
   fs.writeFileSync(path.join(outDir, '03-web-desktop-guidance-highlight.png'), img3.toPNG());
   console.log('  ✔ Saved 03-web-desktop-guidance-highlight.png');
 
   // Simulate Recovery state
   await desktopWin.webContents.executeJavaScript(`
-    new Promise((resolve) => {
+    (() => {
       const tag = document.getElementById('instruction-step-tag');
       const text = document.getElementById('instruction-text');
       const obs = document.getElementById('observation-text');
@@ -134,31 +138,45 @@ app.whenReady().then(async () => {
 
       if (overlay) {
         overlay.innerHTML = \`
-          <div class="target-bracket" style="top: 7.2%; left: 11.5%; width: 4.8%; height: 2.6%;">
+          <div class="target-bracket recovery-bracket" style="top: 7.2%; left: 11.5%; width: 4.8%; height: 2.6%;">
             <div class="target-bracket-label">Return to 'Insert'</div>
           </div>
         \`;
       }
-
-      const ws = document.getElementById('workspace');
-      if (ws) {
-        const top = ws.getBoundingClientRect().top + window.pageYOffset;
-        window.scrollTo(0, top - 40);
-      }
-      setTimeout(resolve, 400);
-    })
+    })()
   `);
+  await waitForPaint(desktopWin);
 
-  const img4 = await desktopWin.webContents.capturePage();
+  const img4 = await desktopWin.webContents.capturePage({ x: 0, y: 68, width: 1440, height: 860 });
   fs.writeFileSync(path.join(outDir, '04-web-desktop-recovery-state.png'), img4.toPNG());
   console.log('  ✔ Saved 04-web-desktop-recovery-state.png');
 
   desktopWin.destroy();
 
-  // 2. Mobile Viewport (390 x 1400 - iPhone / Modern Mobile tall view)
+  // 2. Ordinary Laptop Viewport (1280 x 800)
+  const laptopWin = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  await laptopWin.loadURL('http://localhost:8080');
+  await new Promise((res) => setTimeout(res, 2200));
+  await waitForPaint(laptopWin);
+
+  const img5 = await laptopWin.webContents.capturePage({ x: 0, y: 0, width: 1280, height: 800 });
+  fs.writeFileSync(path.join(outDir, '05-web-laptop-hero.png'), img5.toPNG());
+  console.log('  ✔ Saved 05-web-laptop-hero.png');
+  laptopWin.destroy();
+
+  // 3. Mobile Viewport (390 x 844 portrait)
   const mobileWin = new BrowserWindow({
     width: 390,
-    height: 1400,
+    height: 1800,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -167,37 +185,90 @@ app.whenReady().then(async () => {
   });
 
   await mobileWin.loadURL('http://localhost:8080');
-  await new Promise((res) => setTimeout(res, 800));
+  await new Promise((res) => setTimeout(res, 2200));
+  await waitForPaint(mobileWin);
 
-  // Capture 5: Mobile Hero View
-  const img5 = await mobileWin.webContents.capturePage();
-  fs.writeFileSync(path.join(outDir, '05-web-mobile-hero.png'), img5.toPNG());
-  console.log('  ✔ Saved 05-web-mobile-hero.png');
+  // Capture 6: Mobile Hero View (top 780px)
+  const img6 = await mobileWin.webContents.capturePage({ x: 0, y: 0, width: 390, height: 780 });
+  fs.writeFileSync(path.join(outDir, '06-web-mobile-hero.png'), img6.toPNG());
+  console.log('  ✔ Saved 06-web-mobile-hero.png');
 
-  // Load example and scroll to workspace on mobile
+  // Load example on mobile
   await mobileWin.webContents.executeJavaScript(`
-    new Promise((resolve) => {
-      const btn = document.getElementById('btn-load-calc-example');
+    (() => new Promise((resolve) => {
+      const btn = document.querySelector('.scenario-chip[data-scenario="ready"]');
       if (btn) btn.click();
-      setTimeout(() => {
-        const ws = document.getElementById('workspace');
-        if (ws) {
-          const top = ws.getBoundingClientRect().top + window.pageYOffset;
-          window.scrollTo(0, top - 20);
+      
+      const checkLoaded = setInterval(() => {
+        const preview = document.getElementById('preview-container');
+        const img = document.getElementById('preview-img');
+        if (preview && preview.style.display !== 'none' && img && img.src && img.complete && img.naturalWidth > 0) {
+          clearInterval(checkLoaded);
+          resolve();
         }
-        setTimeout(resolve, 600);
-      }, 500);
-    })
-  `);
-  await new Promise((res) => setTimeout(res, 800));
+      }, 50);
 
-  // Capture 6: Mobile Workspace
-  const img6 = await mobileWin.webContents.capturePage();
-  fs.writeFileSync(path.join(outDir, '06-web-mobile-workspace.png'), img6.toPNG());
-  console.log('  ✔ Saved 06-web-mobile-workspace.png');
+      setTimeout(() => {
+        clearInterval(checkLoaded);
+        resolve();
+      }, 3000);
+    }))()
+  `);
+  await waitForPaint(mobileWin);
+
+  // Scroll mobile workspace into view
+  await mobileWin.webContents.executeJavaScript(`
+    (() => {
+      const ws = document.getElementById('workspace');
+      if (ws) {
+        window.scrollTo(0, ws.offsetTop - 68);
+      }
+      document.querySelectorAll('.workspace-reveal').forEach(el => el.classList.add('revealed'));
+    })()
+  `);
+  await new Promise((res) => setTimeout(res, 600));
+  await waitForPaint(mobileWin);
+
+  // Capture 7: Mobile Workspace
+  const img7 = await mobileWin.webContents.capturePage({ x: 0, y: 68, width: 390, height: 960 });
+  fs.writeFileSync(path.join(outDir, '07-web-mobile-workspace.png'), img7.toPNG());
+  console.log('  ✔ Saved 07-web-mobile-workspace.png');
 
   mobileWin.destroy();
 
-  console.log('[Web Review] All 6 web captures saved successfully to captures/web-review/');
+  // 4. Reduced-Motion Mode Check (Desktop 1440 x 850)
+  const rmWin = new BrowserWindow({
+    width: 1440,
+    height: 850,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  await rmWin.loadURL('http://localhost:8080');
+  await rmWin.webContents.executeJavaScript(`
+    (() => {
+      const style = document.createElement('style');
+      style.textContent = \`
+        * { animation: none !important; transition: none !important; }
+        .entrance-nav, .entrance-lettering, .nori-entrance-wrap, .entrance-bubble, .entrance-copy {
+          opacity: 1 !important; transform: none !important; clip-path: none !important;
+        }
+      \`;
+      document.head.appendChild(style);
+    })()
+  `);
+  await new Promise((res) => setTimeout(res, 500));
+  await waitForPaint(rmWin);
+
+  const img8 = await rmWin.webContents.capturePage({ x: 0, y: 0, width: 1440, height: 850 });
+  fs.writeFileSync(path.join(outDir, '08-web-reduced-motion-hero.png'), img8.toPNG());
+  console.log('  ✔ Saved 08-web-reduced-motion-hero.png');
+
+  rmWin.destroy();
+
+  console.log('[Web Review] All 8 web captures saved successfully to captures/web-review/');
   app.exit(0);
 });

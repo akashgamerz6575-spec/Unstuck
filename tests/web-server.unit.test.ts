@@ -239,6 +239,22 @@ describe('Web Server HTTP Endpoints Unit Tests', () => {
     }
   });
 
+  it('GET /api/examples returns scenarios list and GET /api/example?scenario=selected returns clean fixture', async () => {
+    const listRes = await fetch(`http://127.0.0.1:${testPort}/api/examples`);
+    assert.strictEqual(listRes.status, 200);
+    const listData = (await listRes.json()) as any;
+    assert.ok(Array.isArray(listData.scenarios));
+    assert.ok(listData.scenarios.length >= 4);
+
+    const scenarioRes = await fetch(`http://127.0.0.1:${testPort}/api/example?scenario=selected`);
+    assert.strictEqual(scenarioRes.status, 200);
+    const scenarioData = (await scenarioRes.json()) as any;
+    if (scenarioData.hasExample) {
+      assert.strictEqual(scenarioData.scenario, 'selected');
+      assert.strictEqual(typeof scenarioData.imageBase64, 'string');
+    }
+  });
+
   it('POST /api/check rejects payload with invalid goal', async () => {
     const res = await fetch(`http://127.0.0.1:${testPort}/api/check`, {
       method: 'POST',

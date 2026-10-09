@@ -25,13 +25,26 @@ function copyRecursive(src, dest) {
 
 copyRecursive(srcDir, destDir);
 
-// Copy example capture fixture if available
-const exampleSrc = path.resolve(process.cwd(), 'captures', 'calc-test.png');
+// Copy example capture fixtures from fixtures or captures
 const exampleDestDir = path.resolve(destDir, 'assets');
-if (fs.existsSync(exampleSrc)) {
-  if (!fs.existsSync(exampleDestDir)) fs.mkdirSync(exampleDestDir, { recursive: true });
-  fs.copyFileSync(exampleSrc, path.join(exampleDestDir, 'calc-test.png'));
-  console.log('[Assets] Example screenshot fixture copied to dist/web/assets/calc-test.png');
+if (!fs.existsSync(exampleDestDir)) fs.mkdirSync(exampleDestDir, { recursive: true });
+
+const fixtureFiles = [
+  'calc-test.png',
+  'calc-clean-unselected.png',
+  'calc-clean-selected.png',
+  'calc-clean-pie-chart.png',
+  'calc-clean-bar-chart.png'
+];
+
+for (const file of fixtureFiles) {
+  const p1 = path.resolve(process.cwd(), 'fixtures', file);
+  const p2 = path.resolve(process.cwd(), 'captures', file);
+  const src = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+  if (src) {
+    fs.copyFileSync(src, path.join(exampleDestDir, file));
+    console.log(`[Assets] Fixture copied: ${file}`);
+  }
 }
 
 console.log('[Assets] Static web companion assets, styles, and fonts copied to dist/web');

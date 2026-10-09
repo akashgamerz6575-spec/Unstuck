@@ -37,6 +37,7 @@ const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8'
 };
@@ -160,11 +161,62 @@ export const requestHandler: http.RequestListener = async (req, res) => {
     return;
   }
 
-  // 2. Example Screenshot Endpoint (for instant reviewer exploration)
+  // 2. Clean Example Screenshots Endpoint (for website exploration with no coach overlays)
+  if (method === 'GET' && pathname === '/api/examples') {
+    sendJson(res, 200, {
+      scenarios: [
+        {
+          id: 'ready',
+          label: 'Step 1: Unselected Table (Initial State)',
+          description: 'Cell C6 selected; table A1:B5 unselected. Gemini guides initial data selection.'
+        },
+        {
+          id: 'selected',
+          label: 'Step 2: Data Range A1:B5 Selected',
+          description: 'Data range A1:B5 highlighted; ready to open Insert -> Chart wizard.'
+        },
+        {
+          id: 'recovery',
+          label: 'Mistake Recovery: Pie Chart Deviation',
+          description: 'Sheet contains a pie chart instead of a horizontal bar chart; tests correction guidance.'
+        },
+        {
+          id: 'complete',
+          label: 'Completion: Horizontal Bar Chart Created',
+          description: 'Sheet contains completed horizontal bar chart with title and legend; tests goal verification.'
+        }
+      ]
+    });
+    return;
+  }
+
   if (method === 'GET' && pathname === '/api/example') {
+    const scenario = parsedUrl.searchParams.get('scenario') || 'ready';
+    let targetFileName = 'calc-test.png';
+    let label = 'LibreOffice Calc: Table Unselected (Step 1)';
+    let description = 'Clean Calc-only capture with table unselected; prompt Gemini to recognize selection need.';
+
+    if (scenario === 'selected') {
+      targetFileName = 'calc-clean-selected.png';
+      label = 'LibreOffice Calc: Data Range A1:B5 Selected (Step 2)';
+      description = 'Clean Calc-only capture with A1:B5 selected; prompt Gemini to recognize selection and advance.';
+    } else if (scenario === 'recovery' || scenario === 'wrong-chart' || scenario === 'pie-chart') {
+      targetFileName = 'calc-clean-pie-chart.png';
+      label = 'LibreOffice Calc: Wrong Chart Type (Mistake Recovery)';
+      description = 'Clean Calc-only capture with a pie chart; prompt Gemini to detect wrong chart type and recover.';
+    } else if (scenario === 'complete' || scenario === 'bar-chart') {
+      targetFileName = 'calc-clean-bar-chart.png';
+      label = 'LibreOffice Calc: Horizontal Bar Chart (Completed)';
+      description = 'Clean Calc-only capture with horizontal bar chart; prompt Gemini to verify completion.';
+    }
+
     const candidatePaths = [
-      path.resolve(process.cwd(), 'captures', 'calc-test.png'),
+      path.resolve(process.cwd(), 'fixtures', targetFileName),
+      path.resolve(process.cwd(), 'captures', targetFileName),
+      path.resolve(WEB_DIST_DIR, 'assets', targetFileName),
+      // Fallback to calc-test.png
       path.resolve(process.cwd(), 'fixtures', 'calc-test.png'),
+      path.resolve(process.cwd(), 'captures', 'calc-test.png'),
       path.resolve(WEB_DIST_DIR, 'assets', 'calc-test.png')
     ];
 
@@ -188,11 +240,12 @@ export const requestHandler: http.RequestListener = async (req, res) => {
       const buffer = fs.readFileSync(foundPath);
       sendJson(res, 200, {
         hasExample: true,
-        label: 'LibreOffice Calc Bar Chart Fixture',
+        scenario,
+        label,
         mimeType: 'image/png',
         imageBase64: buffer.toString('base64'),
         goal: "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.",
-        description: 'Sanitized capture of the verified LibreOffice Calc horizontal bar chart workflow.'
+        description
       });
     } catch (readErr) {
       sendJson(res, 500, {

@@ -1,35 +1,42 @@
 /* Unstuck Web - Approved Design Tokens (ChatGPT & Akash Specification) */
 
 :root {
-  /* Surface Palettes */
-  --color-canvas: #111B15;
-  --color-canvas-subtle: #17211B;
-  --color-canvas-card: #1D2B22;
-  --color-warm-paper: #F4F1E8;
+  /* Midnight Navy Stage & Nori Palette (Final Approved Direction) */
+  --color-canvas: #080F24;
+  --color-canvas-subtle: #0D1630;
+  --color-canvas-card: #111C35;
+  --color-canvas-card-elevated: #162444;
+  --color-warm-paper: #F5F2EA;
   --color-paper-card: #FFFFFF;
-  --color-paper-elevated: #EDE8DC;
+  --color-paper-elevated: #EDE7D8;
   
   /* Text & Legibility */
-  --color-text-dark: #17211B;
-  --color-text-secondary: #586255;
-  --color-text-on-dark: #F4F1E8;
-  --color-text-on-dark-muted: #8F9E8B;
-  --color-text-moss-button: #111B15;
+  --color-text-dark: #172033;
+  --color-text-secondary: #5C677D;
+  --color-text-on-dark: #F5F7FC;
+  --color-text-on-dark-muted: #B7C4D9;
+  --color-text-pearl: #F5F7FC;
+  --color-text-moss-button: #080F24;
   
   /* Accents & States */
-  --color-moss: #A6B68F;
-  --color-moss-light: #C2CEB0;
-  --color-moss-dark: #82946A;
-  --color-clay: #D58B64;
-  --color-clay-soft: #F9ECE4;
-  --color-clay-border: #D58B64;
-  --color-error-text: #9F352D;
-  --color-error-bg: #FBEBE9;
+  --color-blue-accent: #69C8FF;
+  --color-blue-accent-glow: rgba(105, 200, 255, 0.4);
+  --color-amber-accent: #FFC447;
+  --color-amber-accent-soft: rgba(255, 196, 71, 0.14);
+  --color-amber-accent-border: #FFC447;
+  --color-moss: #69C8FF;
+  --color-moss-light: #9CE0FF;
+  --color-moss-dark: #3AAAE0;
+  --color-clay: #FFC447;
+  --color-clay-soft: rgba(255, 196, 71, 0.12);
+  --color-clay-border: #FFC447;
+  --color-error-text: #E05252;
+  --color-error-bg: #2B161E;
 
   /* Borders & Dividers */
-  --color-border-fine: #D8DDCF;
-  --color-border-dark: #334236;
-  --color-border-dark-subtle: #26382D;
+  --color-border-fine: #DCD8CD;
+  --color-border-dark: #1E2D4F;
+  --color-border-dark-subtle: #17233E;
 
   /* Typography */
   --font-heading: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
