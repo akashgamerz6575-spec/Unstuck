@@ -1,0 +1,62 @@
+/* Unstuck Web - Approved Design Tokens (ChatGPT & Akash Specification) */
+
+:root {
+  /* Surface Palettes */
+  --color-canvas: #111B15;
+  --color-canvas-subtle: #17211B;
+  --color-canvas-card: #1D2B22;
+  --color-warm-paper: #F4F1E8;
+  --color-paper-card: #FFFFFF;
+  --color-paper-elevated: #EDE8DC;
+  
+  /* Text & Legibility */
+  --color-text-dark: #17211B;
+  --color-text-secondary: #586255;
+  --color-text-on-dark: #F4F1E8;
+  --color-text-on-dark-muted: #8F9E8B;
+  --color-text-moss-button: #111B15;
+  
+  /* Accents & States */
+  --color-moss: #A6B68F;
+  --color-moss-light: #C2CEB0;
+  --color-moss-dark: #82946A;
+  --color-clay: #D58B64;
+  --color-clay-soft: #F9ECE4;
+  --color-clay-border: #D58B64;
+  --color-error-text: #9F352D;
+  --color-error-bg: #FBEBE9;
+
+  /* Borders & Dividers */
+  --color-border-fine: #D8DDCF;
+  --color-border-dark: #334236;
+  --color-border-dark-subtle: #26382D;
+
+  /* Typography */
+  --font-heading: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-control: 11px;
+  --radius-card: 20px;
+  --radius-canvas: 24px;
+  --radius-pill: 9999px;
+
+  /* Shadows */
+  --shadow-card: 0 16px 40px -12px rgba(17, 27, 21, 0.12), 0 4px 12px rgba(17, 27, 21, 0.05);
+  --shadow-active-panel: 0 20px 48px -10px rgba(10, 16, 12, 0.35), 0 6px 18px rgba(10, 16, 12, 0.15);
+  --shadow-glow-moss: 0 0 0 2px rgba(166, 182, 143, 0.35);
+  --shadow-glow-clay: 0 0 0 2px rgba(213, 139, 100, 0.4);
+}

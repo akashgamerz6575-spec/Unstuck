@@ -1,0 +1,439 @@
+/**
+ * Unstuck Web - HTTP Server & API Service
+ * 
+ * Clean, lightweight Node HTTP server compatible with Google Cloud Run:
+ * - Listens on 0.0.0.0 and process.env.PORT (defaults to 8080).
+ * - /healthz health check endpoint.
+ * - Same-origin REST API endpoints:
+ *   * GET  /healthz
+ *   * GET  /api/example
+ *   * POST /api/check
+ *   * POST /api/session/reset
+ * - Safe static file serving for web companion (HTML, CSS, JS, fonts).
+ * - Zero secrets exposed to client.
+ * - Single-worker OCR queue and bounded concurrency.
+ * - Graceful shutdown and worker cleanup.
+ */
+
+import * as http from 'node:http';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { validateImageBuffer } from './image-validator.js';
+import { sessionManager } from './session-manager.js';
+import { extractCandidatesFromBuffer, terminateWebOcrWorker } from './ocr-service.js';
+import { queryWebGeminiCoach, resolveApiKey, getSelectedModel } from './gemini-service.js';
+
+const PORT = parseInt(process.env.PORT || '8080', 10);
+const HOST = '0.0.0.0';
+const WEB_DIST_DIR = path.resolve(process.cwd(), 'dist', 'web');
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8'
+};
+
+/**
+ * Reads and parses JSON body from an incoming HTTP request with size cap.
+ */
+function readJsonBody(req: http.IncomingMessage, maxBytes = 12 * 1024 * 1024): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        req.destroy();
+        reject(new Error(`Payload exceeds maximum size of ${maxBytes / (1024 * 1024)} MiB`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        if (!raw.trim()) {
+          resolve({});
+          return;
+        }
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        reject(new Error(`Invalid JSON request body: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    });
+
+    req.on('error', err => reject(err));
+  });
+}
+
+/**
+ * Sends a JSON response with status code and headers.
+ */
+function sendJson(res: http.ServerResponse, statusCode: number, data: unknown): void {
+  const jsonStr = JSON.stringify(data);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(jsonStr),
+    'Cache-Control': 'no-store'
+  });
+  res.end(jsonStr);
+}
+
+/**
+ * Safe static file server from WEB_DIST_DIR.
+ */
+function serveStaticFile(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): void {
+  let relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+  const filePath = path.normalize(path.join(WEB_DIST_DIR, relativePath));
+
+  // Security guard: Path traversal prevention
+  if (!filePath.startsWith(WEB_DIST_DIR)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden');
+    return;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+
+  fs.stat(filePath, (err, stats) => {
+    if (err || !stats.isFile()) {
+      // Only fallback to index.html for extensionless navigation routes
+      if (!ext) {
+        const fallbackPath = path.join(WEB_DIST_DIR, 'index.html');
+        if (fs.existsSync(fallbackPath)) {
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache'
+          });
+          fs.createReadStream(fallbackPath).pipe(res);
+          return;
+        }
+      }
+
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('404 Not Found');
+      return;
+    }
+
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    // Cache headers: no-cache for html/css/js to guarantee fresh assets, long cache for fonts
+    const cacheControl = (ext === '.html' || ext === '.css' || ext === '.js') ? 'no-cache' : 'public, max-age=3600';
+
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': stats.size,
+      'Cache-Control': cacheControl
+    });
+
+    fs.createReadStream(filePath).pipe(res);
+  });
+}
+
+/**
+ * Main HTTP request handler.
+ */
+export const requestHandler: http.RequestListener = async (req, res) => {
+  const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname;
+  const method = req.method?.toUpperCase() || 'GET';
+
+  // 1. Health check endpoint (for Cloud Run and container probes)
+  if (method === 'GET' && (pathname === '/healthz' || pathname === '/health')) {
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'unstuck-web',
+      model: getSelectedModel(),
+      hasKeyConfigured: resolveApiKey() !== null,
+      timestamp: new Date().toISOString()
+    });
+    return;
+  }
+
+  // 2. Example Screenshot Endpoint (for instant reviewer exploration)
+  if (method === 'GET' && pathname === '/api/example') {
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'captures', 'calc-test.png'),
+      path.resolve(process.cwd(), 'fixtures', 'calc-test.png'),
+      path.resolve(WEB_DIST_DIR, 'assets', 'calc-test.png')
+    ];
+
+    let foundPath: string | null = null;
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        foundPath = p;
+        break;
+      }
+    }
+
+    if (!foundPath) {
+      sendJson(res, 200, {
+        hasExample: false,
+        message: 'No example screenshot capture is bundled.'
+      });
+      return;
+    }
+
+    try {
+      const buffer = fs.readFileSync(foundPath);
+      sendJson(res, 200, {
+        hasExample: true,
+        label: 'LibreOffice Calc Bar Chart Fixture',
+        mimeType: 'image/png',
+        imageBase64: buffer.toString('base64'),
+        goal: "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.",
+        description: 'Sanitized capture of the verified LibreOffice Calc horizontal bar chart workflow.'
+      });
+    } catch (readErr) {
+      sendJson(res, 500, {
+        hasExample: false,
+        error: `Failed to read example capture: ${readErr instanceof Error ? readErr.message : String(readErr)}`
+      });
+    }
+    return;
+  }
+
+  // 3. Reset Session Endpoint
+  if (method === 'POST' && pathname === '/api/session/reset') {
+    try {
+      const body = await readJsonBody(req);
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : null;
+      if (sessionId) {
+        sessionManager.resetSession(sessionId);
+      }
+      sendJson(res, 200, { ok: true, message: 'Session reset cleanly.' });
+    } catch {
+      sendJson(res, 400, { error: 'Invalid request payload.' });
+    }
+    return;
+  }
+
+  // 4. Main Check Endpoint
+  if (method === 'POST' && pathname === '/api/check') {
+    let sessionId = 'default';
+    try {
+      const body = await readJsonBody(req);
+
+      // Validate session ID
+      if (typeof body.sessionId === 'string' && body.sessionId.trim().length > 0) {
+        sessionId = body.sessionId.trim().slice(0, 64);
+      }
+
+      // Check server-side rate pacing and session quotas
+      const pacingResult = sessionManager.checkRateAndPacing(sessionId);
+      if (!pacingResult.allowed) {
+        sendJson(res, 429, {
+          success: false,
+          error: pacingResult.reason,
+          retryAfterSec: pacingResult.retryAfterSec
+        });
+        return;
+      }
+
+      // Validate Goal
+      const rawGoal = typeof body.goal === 'string' ? body.goal.trim() : '';
+      if (rawGoal.length < 3 || rawGoal.length > 500) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Goal must be between 3 and 500 characters.'
+        });
+        return;
+      }
+
+      // Validate base64 image string
+      const rawBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
+      if (!rawBase64) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Missing imageBase64 data in request payload.'
+        });
+        return;
+      }
+
+      // Strip data URI prefix if present
+      const cleanBase64 = rawBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+      const imageBuffer = Buffer.from(cleanBase64, 'base64');
+
+      // Binary validation & dimension inspection
+      const validation = validateImageBuffer(imageBuffer);
+      if (!validation.valid || !validation.mimeType) {
+        sendJson(res, 400, {
+          success: false,
+          error: validation.error || 'Invalid screenshot image data.'
+        });
+        return;
+      }
+
+      // Acquire in-flight lock for session
+      sessionManager.beginRequest(sessionId);
+
+      // Validate previous instruction & history
+      const previousInstruction = typeof body.previousInstruction === 'string' && body.previousInstruction.trim().length > 0
+        ? body.previousInstruction.trim().slice(0, 300)
+        : null;
+
+      const history: Array<{
+        turnNumber: number;
+        instruction: string;
+        assessment: string;
+        status: string;
+        selectedCandidateText: string | null;
+      }> = Array.isArray(body.history)
+        ? body.history.slice(-5).map((h: any, idx: number) => ({
+            turnNumber: typeof h.turnNumber === 'number' ? h.turnNumber : idx + 1,
+            instruction: String(h.instruction || '').slice(0, 200),
+            assessment: String(h.assessment || 'uncertain'),
+            status: String(h.status || 'guide'),
+            selectedCandidateText: h.selectedCandidateText ? String(h.selectedCandidateText).slice(0, 50) : null
+          }))
+        : [];
+
+      // Run OCR Candidate Extraction
+      const ocrResult = await extractCandidatesFromBuffer(
+        imageBuffer,
+        validation.width,
+        validation.height
+      );
+
+      // Query Gemini Coach
+      const geminiResult = await queryWebGeminiCoach({
+        imageBuffer,
+        mimeType: validation.mimeType,
+        goal: rawGoal,
+        previousInstruction,
+        history,
+        candidates: ocrResult.candidates
+      });
+
+      if (!geminiResult.success || !geminiResult.guidance) {
+        sessionManager.cancelRequest(sessionId);
+        const status = geminiResult.statusCode || 500;
+        sendJson(res, status, {
+          success: false,
+          error: geminiResult.error || 'Failed to generate guidance from screen observation.'
+        });
+        return;
+      }
+
+      const guidance = geminiResult.guidance;
+
+      // Highlight geometry resolution:
+      // If guidance is uncertain or complete, highlight is strictly suppressed.
+      let targetBox = guidance.targetBox;
+      let hasTargetHighlight = guidance.hasTargetHighlight;
+
+      if (guidance.status === 'uncertain' || guidance.status === 'complete') {
+        targetBox = null;
+        hasTargetHighlight = false;
+      } else if (geminiResult.selectedCandidate) {
+        targetBox = geminiResult.selectedCandidate.normalizedBox;
+        hasTargetHighlight = true;
+      }
+
+      // Complete request in session manager and advance progressive step
+      sessionManager.completeRequest(sessionId, true, {
+        instruction: guidance.instruction,
+        assessment: guidance.assessment,
+        status: guidance.status,
+        selectedCandidateText: geminiResult.selectedCandidate?.text || null
+      });
+
+      const updatedSession = sessionManager.getOrCreateSession(sessionId);
+
+      sendJson(res, 200, {
+        success: true,
+        guidance: {
+          assessment: guidance.assessment,
+          status: guidance.status,
+          observation: guidance.observation,
+          instruction: guidance.instruction,
+          targetLabel: guidance.targetLabel || geminiResult.selectedCandidate?.text || null,
+          targetBox,
+          selectedCandidateId: guidance.selectedCandidateId,
+          expectedOutcome: guidance.expectedOutcome,
+          reason: guidance.reason,
+          hasTargetHighlight
+        },
+        stepNumber: updatedSession.currentStepNumber,
+        checkCount: updatedSession.checkCount,
+        maxChecks: updatedSession.maxChecks,
+        durationMs: Math.round(geminiResult.durationMs + ocrResult.durationMs),
+        ocrDurationMs: Math.round(ocrResult.durationMs),
+        candidatesFound: ocrResult.candidates.length,
+        imageDimensions: {
+          width: validation.width,
+          height: validation.height
+        }
+      });
+    } catch (err: unknown) {
+      sessionManager.cancelRequest(sessionId);
+      sendJson(res, 500, {
+        success: false,
+        error: `Server processing error: ${err instanceof Error ? err.message : String(err)}`
+      });
+    }
+    return;
+  }
+
+  // 5. Static file serving (HTML, CSS, JS, fonts)
+  if (method === 'GET' || method === 'HEAD') {
+    serveStaticFile(req, res, pathname);
+    return;
+  }
+
+  // 405 Method Not Allowed
+  res.writeHead(405, { 'Content-Type': 'text/plain' });
+  res.end('Method Not Allowed');
+};
+
+/**
+ * Starts the HTTP server.
+ */
+export function startServer(port = PORT, host = HOST): http.Server {
+  const server = http.createServer(requestHandler);
+
+  server.listen(port, host, () => {
+    console.log(`[Unstuck Web] Server listening at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
+    console.log(`[Unstuck Web] Health check: http://localhost:${port}/healthz`);
+  });
+
+  // Graceful shutdown handling
+  const shutdown = async () => {
+    console.log('[Unstuck Web] Shutting down gracefully...');
+    server.close(async () => {
+      await terminateWebOcrWorker();
+      console.log('[Unstuck Web] Server and OCR worker stopped.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  return server;
+}
+
+import { fileURLToPath } from 'node:url';
+
+// Auto-start if run directly
+if (process.argv[1]) {
+  try {
+    const currentFile = fileURLToPath(import.meta.url);
+    if (path.resolve(process.argv[1]).toLowerCase() === path.resolve(currentFile).toLowerCase()) {
+      startServer();
+    }
+  } catch {
+    // Fallback start
+    startServer();
+  }
+}

@@ -9,8 +9,11 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc && node scripts/copy-assets.mjs",
+    "build": "tsc && node scripts/copy-assets.mjs && node scripts/copy-web-assets.mjs",
+    "build:web": "tsc && node scripts/copy-web-assets.mjs",
     "start": "electron dist/electron/main.js",
+    "start:web": "node dist/server/server.js",
+    "web": "node dist/server/server.js",
     "mock-ui": "electron dist/electron/main.js --mock-ui",
     "coach": "electron dist/electron/main.js --coach",
     "proof": "electron dist/electron/main.js",

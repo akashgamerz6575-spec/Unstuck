@@ -95,7 +95,7 @@ Unstuck enforces strict process and credential boundaries:
    GEMINI_API_KEY=your_actual_gemini_api_key_here
    GEMINI_MODEL=gemini-3.1-flash-lite
    ```
-   *(Note: `.env` is ignored by Git and never committed.)*
+   *(Note: `.env` is ignored by Git and never committed or exposed to the client.)*
 
 4. **Compile TypeScript & Sync Assets:**
    ```bash
@@ -106,25 +106,39 @@ Unstuck enforces strict process and credential boundaries:
 
 ## 6. How to Run
 
-### Option A: Standard Product Launch
+### Option A: Unstuck Web Companion (Browser on Any OS)
+```bash
+npm run start:web
+```
+- Starts the lightweight Node HTTP server on `http://localhost:8080`.
+- Health check available at `http://localhost:8080/healthz`.
+- Features:
+  - **Instant Reviewer Exploration:** Click **"Explore an example"** to test with the verified LibreOffice Calc screenshot fixture without installing LibreOffice.
+  - **Upload or Paste:** Drag-and-drop any PNG or JPEG screenshot, or paste directly with `Ctrl+V`.
+  - **Real Multimodal Guidance:** Click **"Find my next move"** to run live Gemini vision analysis with local OCR text candidate grounding.
+  - **Grounded Visual Highlight:** Draws a high-contrast Moss outline bracket directly on the screenshot over the target control.
+  - **Progress Check & Recovery:** Upload a fresh screenshot and click **"Check my progress"** to verify visible completion or receive corrective guidance.
+  - **Cloud Run Ready:** Built for containerized deployment listening on `0.0.0.0` and `process.env.PORT`.
+
+### Option B: Windows Desktop Application (Live Desktop Overlay)
 ```bash
 npm start
 ```
-Opens the **Launch Window** (*"Find your next move."*). Click **Start coaching** to begin the session.
+Opens the **Launch Window** (*"Find your next move."*). Click **Start coaching** to begin the live desktop coaching session with transparent pass-through click overlays over LibreOffice Calc.
 
-### Option B: Developer Mock UI QA (All 9 States Offline)
+### Option C: Developer Mock UI QA (All 9 States Offline)
 ```bash
 npm run mock-ui
 ```
 Opens the active coach panel with a dropdown selector to preview and inspect all 9 visual states (`ready`, `capturing`, `analysing`, `guidance`, `recovery`, `paused`, `complete`, `error`, `text-only`) offline without calling Gemini or consuming API quota.
 
-### Option C: Direct Coaching Mode
+### Option D: Direct Desktop Coaching Mode
 ```bash
 npm run coach
 ```
-Launches directly into active coach mode docked at the bottom-right corner of your desktop.
+Launches directly into active desktop coach mode docked at the bottom-right corner of your desktop.
 
-### Option D: Static OCR Label Proof
+### Option E: Static OCR Label Proof
 ```bash
 npm run proof -- --target=Insert
 ```
