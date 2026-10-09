@@ -66,6 +66,19 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(outDir, '01-web-desktop-hero.png'), img1.toPNG());
   console.log('  ✔ Saved 01-web-desktop-hero.png');
 
+  // Capture 1b: Workflow Demo Walkthrough section
+  await desktopWin.webContents.executeJavaScript(`
+    (() => {
+      const demo = document.getElementById('workflow-demo');
+      if (demo) window.scrollTo(0, demo.offsetTop - 40);
+    })()
+  `);
+  await new Promise((res) => setTimeout(res, 600));
+  await waitForPaint(desktopWin);
+  const imgDemo = await desktopWin.webContents.capturePage({ x: 0, y: 0, width: 1440, height: 620 });
+  fs.writeFileSync(path.join(outDir, '01b-web-desktop-workflow-demo.png'), imgDemo.toPNG());
+  console.log('  ✔ Saved 01b-web-desktop-workflow-demo.png');
+
   // Click "Explore an example" in the hero, which loads clean start fixture and scrolls to workspace
   await desktopWin.webContents.executeJavaScript(`
     (() => {
@@ -176,7 +189,7 @@ app.whenReady().then(async () => {
   // 3. Mobile Viewport (390 x 844 portrait)
   const mobileWin = new BrowserWindow({
     width: 390,
-    height: 1800,
+    height: 844,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -188,8 +201,8 @@ app.whenReady().then(async () => {
   await new Promise((res) => setTimeout(res, 2200));
   await waitForPaint(mobileWin);
 
-  // Capture 6: Mobile Hero View (top 780px)
-  const img6 = await mobileWin.webContents.capturePage({ x: 0, y: 0, width: 390, height: 780 });
+  // Capture 6: Mobile Hero View (top 800px)
+  const img6 = await mobileWin.webContents.capturePage({ x: 0, y: 0, width: 390, height: 800 });
   fs.writeFileSync(path.join(outDir, '06-web-mobile-hero.png'), img6.toPNG());
   console.log('  ✔ Saved 06-web-mobile-hero.png');
 
@@ -221,16 +234,16 @@ app.whenReady().then(async () => {
     (() => {
       const ws = document.getElementById('workspace');
       if (ws) {
-        window.scrollTo(0, ws.offsetTop - 68);
+        ws.scrollIntoView();
       }
       document.querySelectorAll('.workspace-reveal').forEach(el => el.classList.add('revealed'));
     })()
   `);
-  await new Promise((res) => setTimeout(res, 600));
+  await new Promise((res) => setTimeout(res, 800));
   await waitForPaint(mobileWin);
 
   // Capture 7: Mobile Workspace
-  const img7 = await mobileWin.webContents.capturePage({ x: 0, y: 68, width: 390, height: 960 });
+  const img7 = await mobileWin.webContents.capturePage({ x: 0, y: 0, width: 390, height: 844 });
   fs.writeFileSync(path.join(outDir, '07-web-mobile-workspace.png'), img7.toPNG());
   console.log('  ✔ Saved 07-web-mobile-workspace.png');
 

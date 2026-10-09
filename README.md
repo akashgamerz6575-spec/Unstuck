@@ -51,8 +51,7 @@ Manual test sessions captured from the live Windows 11 desktop coach demonstrate
 - **Target Application:** LibreOffice Calc (Desktop).
 - **Demo Task:** Create a horizontal bar chart from tabular data `A1:B5` with headers (*Department*, *Requests*) and title *"Requests by department"*.
 - **Supported Display:** Single primary display (`2560x1600` physical, `2048x1280` logical at 125% DPI scale measured dynamically at runtime).
-- **Model Engine:** Multimodal Google Gemini via `gemini-3.1-flash-lite` (with `LOW` thinking level) for fast reasoning latency (~2.8s measured), with `gemini-3.5-flash-lite` and `gemini-3.8-flash` supported via configuration.
-- **Repository Size Budget:** Tracked source and assets remain strictly at **~2.7 MB**, well within the 5 MB target and 10 MB maximum repository budget.
+- **Repository Size Budget:** Tracked source and assets remain strictly at **~3.75 MB** across 98 files (Git database: **~2.93 MB**, combined total: **~6.68 MB**), well within the 5 MB target and 10 MB maximum repository budget.
 
 ---
 

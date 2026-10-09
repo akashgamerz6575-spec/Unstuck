@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Unstuck — Find your next move.</title>
   <meta name="description" content="A screen-aware AI coach for the moment you get stuck in complex desktop software. Grounded visual guidance and mistake recovery.">
+  <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/app.css">
   <link rel="stylesheet" href="./styles/motion.css">
 </head>
@@ -25,15 +26,23 @@
         </div>
       </div>
       <div class="nav-actions">
-        <a href="#workflow-explainer" class="nav-link">Tested Workflow</a>
-        <a href="#desktop-explainer" class="nav-link">Desktop Overlay</a>
+        <a href="#workflow-demo" class="nav-link">How It Works</a>
+        <a href="#workflow-explainer" class="nav-link">Architecture</a>
+        <a href="https://github.com/akashgamerz6575-spec/Unstuck" target="_blank" rel="noopener noreferrer" class="nav-github-link" title="View repository on GitHub">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span class="nav-github-label">View on GitHub ↗</span>
+        </a>
         <div class="status-indicator" id="system-status">
           <div class="status-dot"></div>
           <span id="system-status-text">Ready</span>
         </div>
       </div>
+    </div>
   </header>
-  <!-- Hero Section: Cinematic Nori Stage -->
+
+  <!-- Hero Section: Cinematic Connected Nori Stage -->
   <section class="hero-section" id="hero">
     <div class="hero-stage">
       <!-- Curved Horizon & Atmospheric Lighting -->
@@ -49,7 +58,7 @@
         <div class="hero-backdrop-text entrance-lettering">UNSTUCK</div>
       </div>
 
-      <!-- Central Companion: Nori Stage with Nested Wrappers for Coordinated Motion -->
+      <!-- Central Companion: Nori Stage with Nested Wrappers -->
       <div class="nori-stage-wrapper">
         <div class="nori-parallax-wrap" id="nori-parallax">
           <div class="nori-entrance-wrap">
@@ -79,23 +88,107 @@
         </div>
       </div>
 
-      <!-- Supporting Content in Clear Space -->
-      <div class="hero-content-wrap">
-        <div class="container hero-content-container">
-          <div class="hero-copy-card entrance-copy">
-            <h1 class="hero-headline">Your screen. One clear next move.</h1>
-            <p class="hero-subcopy">Show Nori where you’re stuck. Get guidance, check your progress, and recover from a wrong turn.</p>
-            
-            <div class="hero-actions">
-              <a href="#workspace" class="btn-primary" id="btn-hero-try">
-                <span>Try Unstuck</span>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 3.5l5 4.5-5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </a>
-              <button class="btn-secondary" id="btn-hero-example" type="button">
-                <span>Explore an example</span>
-              </button>
+      <!-- Connected Supporting Copy & Actions (Visible immediately on load) -->
+      <div class="hero-copy-card">
+        <h1 class="hero-headline">Your screen. One clear next move.</h1>
+        <p class="hero-subcopy">Show Nori where you’re stuck. Get guidance, check your progress, and recover from a wrong turn.</p>
+        
+        <div class="hero-actions">
+          <a href="#workspace" class="btn-primary" id="btn-hero-try">
+            <span>Try Unstuck</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3.5l5 4.5-5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <button class="btn-secondary" id="btn-hero-example" type="button">
+            <span>Explore an example</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compact Visual Product Demonstration -->
+  <section class="demo-walkthrough-section" id="workflow-demo" aria-label="How Unstuck Works">
+    <div class="container demo-container">
+      <div class="demo-badge-wrap">
+        <span class="demo-badge">Documented Example · How Unstuck Guides You</span>
+        <span class="demo-badge-sub">Illustrative preview; live interactive guidance is available below</span>
+      </div>
+
+      <div class="demo-card-stage">
+        <!-- Short progression: Observe → Guide → Check -->
+        <div class="demo-progression-bar" aria-label="Guidance steps">
+          <div class="demo-step active">
+            <span class="step-num">1</span>
+            <span class="step-text">Observe</span>
+          </div>
+          <div class="demo-step-arrow" aria-hidden="true">→</div>
+          <div class="demo-step active">
+            <span class="step-num">2</span>
+            <span class="step-text">Guide</span>
+          </div>
+          <div class="demo-step-arrow" aria-hidden="true">→</div>
+          <div class="demo-step active">
+            <span class="step-num">3</span>
+            <span class="step-text">Check</span>
+          </div>
+        </div>
+
+        <!-- Demonstration split layout: Screenshot Detail + Grounded Bracket + Coach Card -->
+        <div class="demo-split-layout">
+          <!-- Screenshot detail with high-contrast highlight outline -->
+          <div class="demo-screenshot-box">
+            <div class="demo-screenshot-header">
+              <span class="demo-window-dot"></span>
+              <span class="demo-window-title">LibreOffice Calc — Sheet Observation Detail</span>
+            </div>
+            <div class="demo-screenshot-body">
+              <div class="demo-calc-grid">
+                <div class="demo-grid-row header">
+                  <span class="cell corner"></span>
+                  <span class="cell col-head">A</span>
+                  <span class="cell col-head">B</span>
+                </div>
+                <div class="demo-grid-row">
+                  <span class="cell row-head">1</span>
+                  <span class="cell data bold">Department</span>
+                  <span class="cell data bold">Requests</span>
+                </div>
+                <div class="demo-grid-row">
+                  <span class="cell row-head">2</span>
+                  <span class="cell data">Library</span>
+                  <span class="cell data num">42</span>
+                </div>
+                <div class="demo-grid-row">
+                  <span class="cell row-head">3</span>
+                  <span class="cell data">IT Desk</span>
+                  <span class="cell data num">68</span>
+                </div>
+              </div>
+              <div class="demo-target-bracket">
+                <span class="demo-target-label">Target: Select table A1:B5</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nori instruction card -->
+          <div class="demo-coach-card">
+            <div class="demo-coach-header">
+              <picture class="coach-avatar-picture">
+                <source srcset="./assets/nori-portrait.webp" type="image/webp">
+                <img src="./assets/nori-portrait.png" alt="Nori" width="34" height="34" class="coach-avatar-img">
+              </picture>
+              <div>
+                <div class="demo-coach-name">Nori · Step Guidance</div>
+                <div class="demo-coach-status">Grounded Target Outline</div>
+              </div>
+            </div>
+            <div class="demo-coach-body">
+              <h4 class="demo-directive">Click cell A1 and drag to B5 to select the tabular data.</h4>
+              <div class="demo-rationale">
+                <strong>What Nori noticed:</strong> Cell C10 was active, but the chart wizard needs your data range selected first.
+              </div>
             </div>
           </div>
         </div>
@@ -109,6 +202,7 @@
       <h2 class="workspace-heading">Your screen. Your next move.</h2>
       <p class="workspace-subheading">Upload a screenshot or choose an example state to test grounded vision guidance and mistake recovery.</p>
     </div>
+
     <div class="container workspace-grid workspace-reveal">
 
       <!-- Left Column: Screenshot Canvas -->
@@ -124,6 +218,17 @@
           </div>
         </header>
 
+        <!-- Always-Visible Example Selector Bar (Discoverable whether image is loaded or not) -->
+        <div class="example-bar" id="example-bar">
+          <span class="example-bar-label">Try an example:</span>
+          <div class="scenario-chips" role="group" aria-label="Preset Calc examples">
+            <button class="scenario-chip" data-scenario="ready" type="button" title="Clean Calc capture with table unselected">Start</button>
+            <button class="scenario-chip" data-scenario="selected" type="button" title="Clean Calc capture with table selected">Data selected</button>
+            <button class="scenario-chip" data-scenario="recovery" type="button" title="Clean Calc capture with pie chart">Wrong chart</button>
+            <button class="scenario-chip" data-scenario="complete" type="button" title="Clean Calc capture with horizontal bar chart">Finished chart</button>
+          </div>
+        </div>
+
         <div class="canvas-body" id="canvas-dropzone-container">
           <!-- Analysis progress bar (hidden until analysis) -->
           <div class="analysis-progress" id="analysis-progress" style="display: none;"></div>
@@ -138,15 +243,6 @@
             </div>
             <h3 class="dropzone-title">Drop your screenshot here</h3>
             <p class="dropzone-subtitle">Click to browse or paste from clipboard (Ctrl+V). PNG or JPEG up to 8 MiB.</p>
-            <div class="dropzone-scenarios" id="dropzone-scenarios">
-              <span class="dropzone-scenarios-label">Clean Calc fixtures (unbiased vision):</span>
-              <div class="scenario-chips">
-                <button class="scenario-chip" data-scenario="ready" type="button" title="Clean Calc capture with table unselected">Start</button>
-                <button class="scenario-chip" data-scenario="selected" type="button" title="Clean Calc capture with table selected">Data selected</button>
-                <button class="scenario-chip" data-scenario="recovery" type="button" title="Clean Calc capture with pie chart">Wrong chart</button>
-                <button class="scenario-chip" data-scenario="complete" type="button" title="Clean Calc capture with horizontal bar chart">Finished chart</button>
-              </div>
-            </div>
             <input type="file" id="file-input" class="file-input" accept="image/png, image/jpeg" aria-label="Screenshot file input">
           </div>
 
@@ -160,13 +256,6 @@
         </div>
 
         <footer class="canvas-footer">
-          <div class="scenario-quick-links" id="scenario-quick-links" style="display: none;">
-            <span class="quick-links-label">Clean stage:</span>
-            <button class="quick-chip" data-scenario="ready" type="button" title="Step 1: Table unselected">Start</button>
-            <button class="quick-chip" data-scenario="selected" type="button" title="Step 2: Table selected">Data selected</button>
-            <button class="quick-chip" data-scenario="recovery" type="button" title="Mistake: Pie chart recovery">Wrong chart</button>
-            <button class="quick-chip" data-scenario="complete" type="button" title="Completion: Bar chart">Finished chart</button>
-          </div>
           <span class="canvas-footer-tip" id="canvas-footer-tip">Upload a screenshot of your active application to begin.</span>
           <div class="canvas-actions">
             <button class="btn-subtle" id="btn-fresh-screenshot" style="display: none;" title="Replace current screenshot with a fresh one">
@@ -194,11 +283,14 @@
           <span class="status-badge ready" id="status-badge">Ready</span>
         </header>
 
-        <!-- Goal Input Card -->
+        <!-- Goal Input Card with Explicit Mode Distinction -->
         <div class="goal-card">
           <div class="goal-card-header">
-            <span class="goal-label">Your Goal</span>
-            <button class="preset-chip" id="btn-preset-chart" title="Set tested LibreOffice Calc bar chart task">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="goal-label">Your Goal</span>
+              <span class="goal-mode-chip preset" id="goal-mode-chip">Preset</span>
+            </div>
+            <button class="preset-chip" id="btn-preset-chart" type="button" title="Set tested LibreOffice Calc bar chart task">
               Preset: Make a chart
             </button>
           </div>
@@ -209,6 +301,9 @@
             maxlength="500" 
             placeholder="Describe what you want to achieve..."
           >Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.</textarea>
+          <div class="goal-clarification-hint" id="goal-clarification-hint" style="display: none;">
+            Custom goal active. Stale responses cleared.
+          </div>
         </div>
 
         <!-- Busy / Analysing Indicator -->
@@ -329,11 +424,17 @@
   <!-- Site Footer -->
   <footer class="site-footer">
     <div class="container footer-content">
-      <div style="display: flex; align-items: center; gap: 8px;">
+      <div class="footer-left">
         <div class="brand-dot" style="width: 8px; height: 8px;"></div>
-        <span>Unstuck — Autonomous Screen Guidance Coach</span>
+        <span>Unstuck — Interactive Screen Guidance Coach</span>
       </div>
-      <div>
+      <div class="footer-center">
+        <span>Built by Akash V · Powered by Google Gemini</span>
+        <a href="https://github.com/akashgamerz6575-spec/Unstuck" target="_blank" rel="noopener noreferrer" class="footer-github-link">
+          View on GitHub ↗
+        </a>
+      </div>
+      <div class="footer-right">
         <span>Screen snapshots sent to Gemini solely upon user check. Never continuously recorded.</span>
       </div>
     </div>

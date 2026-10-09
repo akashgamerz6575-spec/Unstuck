@@ -305,6 +305,11 @@ class UnstuckWebApp {
   private btnResetSession = document.getElementById('btn-reset-session') as HTMLButtonElement;
 
   private goalInput = document.getElementById('goal-input') as HTMLTextAreaElement;
+  private goalModeChip = document.getElementById('goal-mode-chip') as HTMLElement | null;
+  private goalClarificationHint = document.getElementById('goal-clarification-hint') as HTMLElement | null;
+  private currentGoal: string = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
+  private readonly defaultGoal: string = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
+
   private statusBadge = document.getElementById('status-badge') as HTMLElement;
   private busyBox = document.getElementById('busy-box') as HTMLElement;
   private busyLabel = document.getElementById('busy-label') as HTMLElement;
@@ -384,9 +389,14 @@ class UnstuckWebApp {
       }
     });
 
-    // Preset & Example buttons
+    // Goal input listener & Preset buttons
+    this.goalInput.addEventListener('input', () => {
+      this.handleGoalChange(this.goalInput.value);
+    });
+
     this.btnPresetChart.addEventListener('click', () => {
-      this.goalInput.value = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
+      this.goalInput.value = this.defaultGoal;
+      this.handleGoalChange(this.defaultGoal);
       this.showToast('Tested LibreOffice Calc task preset loaded.');
     });
 
@@ -441,6 +451,46 @@ class UnstuckWebApp {
     this.btnAction.addEventListener('click', () => this.handleActionClick());
     this.btnCancel.addEventListener('click', () => this.cancelAnalysis());
     this.btnResetSession.addEventListener('click', () => this.resetSession());
+  }
+
+  private handleGoalChange(newGoal: string): void {
+    const trimmed = newGoal.trim();
+    const isPreset = trimmed === this.defaultGoal;
+
+    if (this.goalModeChip) {
+      this.goalModeChip.textContent = isPreset ? 'Preset' : 'Custom';
+      this.goalModeChip.className = `goal-mode-chip ${isPreset ? 'preset' : 'custom'}`;
+    }
+
+    if (this.goalClarificationHint) {
+      this.goalClarificationHint.style.display = isPreset ? 'none' : 'block';
+    }
+
+    if (trimmed !== this.currentGoal) {
+      this.currentGoal = trimmed;
+      // Invalidate stale guidance, history, step count, and highlights
+      this.lastGuidance = null;
+      this.history = [];
+      this.currentStepNumber = 1;
+      this.clearHighlight();
+
+      // Reset server session turn counters
+      fetch('/api/session/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId })
+      }).catch(() => {});
+
+      if (this.imageBase64) {
+        this.setState('preview');
+        this.instructionStepTag.textContent = 'Step 1';
+        this.instructionText.textContent = 'Goal updated. Click "Find my next move" to evaluate your screen for this goal.';
+        this.observationText.textContent = 'Stale session responses and highlights cleared for new goal.';
+        this.canvasFooterTip.textContent = 'Click "Find my next move" to request real-time guidance.';
+      } else {
+        this.setState('ready');
+      }
+    }
   }
 
   private async checkServerHealth(): Promise<void> {
@@ -501,6 +551,7 @@ class UnstuckWebApp {
       this.setImageData(dataUri, data.mimeType, `Clean Fixture: ${label}`);
       if (data.goal) {
         this.goalInput.value = data.goal;
+        this.handleGoalChange(data.goal);
       }
       this.showToast(`${label} loaded (clean screenshot, no coach overlays).`);
     } catch (err) {
@@ -532,10 +583,12 @@ class UnstuckWebApp {
     }
     this.imageMetaBadge.textContent = metaLabel;
 
-    // Clear previous highlight on new image load
+    // Clear previous highlight and stale guidance on new image load
     this.clearHighlight();
+    this.lastGuidance = null;
+    this.history = [];
 
-    if (this.state === 'ready' || this.state === 'complete' || this.state === 'error') {
+    if (this.state === 'ready' || this.state === 'complete' || this.state === 'error' || this.state === 'guidance' || this.state === 'recovery' || this.state === 'uncertain') {
       this.setState('preview');
       this.instructionStepTag.textContent = `Step ${this.currentStepNumber}`;
       this.instructionText.textContent = 'Screenshot loaded. Click "Find my next move" to inspect the spreadsheet.';
@@ -550,6 +603,8 @@ class UnstuckWebApp {
     this.imageBase64 = null;
     this.previewImg.src = '';
     this.clearHighlight();
+    this.lastGuidance = null;
+    this.history = [];
 
     this.dropzone.style.display = 'flex';
     this.previewContainer.style.display = 'none';

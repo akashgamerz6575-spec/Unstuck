@@ -581,6 +581,16 @@ ipcMain.on('start-coaching', (_event, data) => {
   if (data?.goal) {
     coachingGoal = data.goal;
   }
+  // Invalidate previous session history, instructions, and outlines on start/restart
+  currentRequestId++;
+  coachingHistory = [];
+  previousInstruction = null;
+  currentStepNumber = 1;
+  isPaused = false;
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('clear-outline');
+  }
+
   if (launchWindow && !launchWindow.isDestroyed()) {
     launchWindow.hide();
   }
@@ -588,6 +598,12 @@ ipcMain.on('start-coaching', (_event, data) => {
     coachWindow = createCoachWindow(cliOptions.mockUi);
   } else {
     coachWindow.show();
+    sendCoachUpdate({
+      state: 'ready',
+      instruction: `Goal: "${coachingGoal.slice(0, 80)}". Focus LibreOffice Calc and click Check to begin.`,
+      observation: 'Ready for initial check.',
+      budget: defaultSessionBudget.getRemaining()
+    });
   }
   if (!overlayWindow) {
     overlayWindow = createOverlayWindow();

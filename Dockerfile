@@ -16,7 +16,7 @@ COPY server/ ./server/
 COPY web/ ./web/
 COPY electron/fonts/ ./electron/fonts/
 COPY scripts/ ./scripts/
-COPY captures/calc-test.png* ./captures/
+COPY fixtures/ ./fixtures/
 
 # Build TypeScript and copy static web assets
 RUN npm run build:web
@@ -38,6 +38,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist/server ./dist/server
 COPY --from=builder /app/dist/shared ./dist/shared
 COPY --from=builder /app/dist/web ./dist/web
+COPY fixtures/ ./fixtures/
 
 # Expose standard Cloud Run port
 EXPOSE 8080

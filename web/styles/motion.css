@@ -45,15 +45,17 @@
 }
 
 .entrance-copy {
-  opacity: 0;
-  transform: translateY(16px);
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* Coordinated Entrance Timings:
    0–400 ms: oversized lettering reveals through a short upward mask.
    250–1100 ms: Nori rises ~40px, fades in and scales from 0.94 to 1.
    1000–1600 ms: a short welcoming sway settles.
-   1300–1900 ms: the welcome bubble and supporting content appear.
+   1300–1900 ms: the welcome bubble appears.
+   Essential copy and action buttons remain visible and interactive throughout.
 */
 .entrance-nav.reveal {
   animation: revealNav 350ms var(--ease-out) forwards;
@@ -73,10 +75,6 @@
 
 .entrance-bubble.reveal {
   animation: revealBubble 600ms cubic-bezier(0.22, 1, 0.36, 1) 1300ms forwards;
-}
-
-.entrance-copy.reveal {
-  animation: revealHeroCopy 600ms cubic-bezier(0.22, 1, 0.36, 1) 1300ms forwards;
 }
 
 @keyframes revealNav {
