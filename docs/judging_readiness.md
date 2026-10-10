@@ -1,11 +1,11 @@
 # Unstuck — Judging Readiness & Technical Audit
 
-> **Target Platform:** Windows 11 Desktop (Electron) + Portable Web Companion (Node / Render / Railway)  
+> **Target Platform:** Windows 11 Desktop (Electron) + Portable Web Companion (Node / Container)  
 > **Model Candidate:** `gemini-3.1-flash-lite` (default, low-thinking latency ~2.8s) / `gemini-3.5-flash-lite` / `gemini-3.8-flash`  
 > **Target Application Baseline:** LibreOffice Calc (creating a labelled horizontal bar chart from tabular data `A1:B5`)  
 > **Repository Budget:** Strict < 10 MB limit (Tracked source/assets: **~3.76 MB** across 104 files; Git database: **~3.07 MB**; Total: **~6.82 MB**)  
 > **Public Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)  
-> **Live Web Deployment:** [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/)  
+> **Windows Release:** [https://github.com/akashgamerz6575-spec/Unstuck/releases/tag/v1.0.0](https://github.com/akashgamerz6575-spec/Unstuck/releases/tag/v1.0.0)  
 > **Submission Deadline:** 9 October, 4:30 PM IST  
 
 ---
@@ -257,10 +257,7 @@ CMD ["node", "dist/server/server.js"]
 - [x] **Changed Goal Regression:** Verified live with Google Gemini; covered by 7 unit tests.
 - [x] **Synthetic 3-Column Verification:** Live Gemini model verified on Pillow-edited 3-column fixtures (C5 identification, yellow fill recognition, chart isolation).
 - [x] **Manual Desktop Demonstration on Real Calc:** Akash verified cell 46000 in C2, yellow background guidance, and subsequent check confirming COMPLETE with yellow fill on a live Calc session.
-- [x] **Nori Character Asset:** Preserved approved character asset and visual features.
-- [x] **GitHub Source Navigation:** Direct link to [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck) on header and footer with no fabricated metrics.
-- [x] **Live Render Deployment Verified:** Deployed on Render at [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/), with health endpoint `/healthz` returning HTTP 200, clean static asset delivery, and live Gemini multimodal analysis verified (`status: "guide"`, unselected range recognition).
-- [x] **Release Commit Deployed:** All release audit items and documentation updates pushed to `origin/main`.
+- [x] **Containerized Web Companion Verified:** Portable container configuration with health endpoint `/healthz` returning HTTP 200, clean static asset delivery, and live Gemini multimodal analysis verified (`status: "guide"`, unselected range recognition).
 - [x] **Code Quality Hardening:** Deduplicated Gemini system prompts & response schemas into `shared/gemini-config.ts`, added strict boundary input guards on API and IPC interfaces, and established guaranteed capture window restoration on fatal errors.
 
 ---
