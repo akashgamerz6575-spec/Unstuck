@@ -27,6 +27,7 @@ export interface UserSession {
   inFlight: boolean;
   currentStepNumber: number;
   history: SessionTurn[];
+  tutorialSteps?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -193,9 +194,27 @@ export class SessionManager {
       inFlight: false,
       currentStepNumber: 1,
       history: [],
+      tutorialSteps: null,
       createdAt: now,
       updatedAt: now
     });
+  }
+
+  /**
+   * Sets cached tutorial steps for the session.
+   */
+  public setTutorialSteps(sessionId: string, steps: string | null): void {
+    const session = this.getOrCreateSession(sessionId);
+    session.tutorialSteps = steps;
+    session.updatedAt = Date.now();
+  }
+
+  /**
+   * Gets cached tutorial steps for the session.
+   */
+  public getTutorialSteps(sessionId: string): string | null {
+    const session = this.sessions.get(sessionId);
+    return session?.tutorialSteps || null;
   }
 
   /**

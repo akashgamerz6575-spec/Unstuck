@@ -33,7 +33,7 @@
             <rect x="2" y="2" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
             <path d="M4 6h4M4 8h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
           </svg>
-          Windows · LibreOffice Calc preview
+          Windows · Desktop Text Guidance
         </div>
 
         <h1 class="headline">Find your next move.</h1>
@@ -54,6 +54,21 @@
             rows="3" 
             placeholder="Describe what you want to achieve..."
           >Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.</textarea>
+
+          <!-- Optional Tutorial Video URL Field -->
+          <div class="tutorial-field-wrap">
+            <label for="tutorial-url-input" class="card-label-sub">Tutorial video <span class="optional-text">(optional)</span></label>
+            <input 
+              type="url" 
+              id="tutorial-url-input" 
+              class="tutorial-url-input" 
+              placeholder="https://www.youtube.com/watch?v=..." 
+              aria-label="Optional YouTube tutorial video URL"
+            />
+            <p class="tutorial-privacy-notice">
+              Optional public YouTube link. Analyzed once by Gemini for steps; video content is not downloaded, stored, or scraped.
+            </p>
+          </div>
 
           <!-- Target Application Guard -->
           <div class="target-detector">

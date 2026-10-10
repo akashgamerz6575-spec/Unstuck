@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const STATE_DEFINITIONS = {
     ready: {
       badge: 'Ready',
-      instruction: 'Focus LibreOffice Calc and click Check to begin.',
+      instruction: 'Focus your active application and click Check to begin.',
       observation: 'Waiting for your first screen check.',
       recovery: null,
       busy: null,
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     capturing: {
       badge: 'Observing',
       instruction: 'Observing your desktop…',
-      observation: 'Hiding coach to capture active LibreOffice Calc window.',
+      observation: 'Hiding coach to capture active application window.',
       recovery: null,
       busy: 'Capturing window…',
       panelClass: '',
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     analysing: {
       badge: 'Reasoning',
       instruction: 'Analyzing your current progress…',
-      observation: 'Grounded model evaluating visible controls.',
+      observation: 'Evaluating visible application state.',
       recovery: null,
       busy: 'Reading your screen…',
       panelClass: '',
@@ -99,8 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     complete: {
       badge: 'Complete',
-      instruction: 'Well done! Your horizontal bar chart is inserted and titled.',
-      observation: 'Visible finished chart "Requests by department" verified on sheet.',
+      instruction: 'Well done! Your task is verified complete.',
+      observation: 'Visible finished goal state verified on screen.',
       recovery: null,
       busy: null,
       panelClass: 'state-complete',
@@ -109,8 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     error: {
       badge: 'Notice',
-      instruction: 'Please bring LibreOffice Calc to the foreground.',
-      observation: 'Another window is currently active in front of Calc.',
+      instruction: 'Please bring your target application to the foreground.',
+      observation: 'Desktop or coach window is currently active.',
       recovery: null,
       busy: null,
       panelClass: 'state-error',

@@ -301,6 +301,24 @@
             maxlength="500" 
             placeholder="Describe what you want to achieve..."
           >Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.</textarea>
+
+          <div class="tutorial-url-wrap" style="margin-top: 10px;">
+            <label for="tutorial-url-input" class="goal-label" style="display: block; font-size: 11.5px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted);">
+              Tutorial video <span style="font-weight: normal; text-transform: none; opacity: 0.75;">(optional)</span>
+            </label>
+            <input 
+              type="url" 
+              id="tutorial-url-input" 
+              class="tutorial-url-input" 
+              placeholder="https://www.youtube.com/watch?v=..." 
+              aria-label="Optional YouTube tutorial video URL"
+              style="width: 100%; padding: 7px 10px; border-radius: var(--radius-control); border: 1.5px solid var(--color-border-fine); background: #FFF; font-size: 13px; color: var(--color-text-dark); box-sizing: border-box;"
+            />
+            <p class="tutorial-privacy-notice" style="font-size: 11px; line-height: 1.35; color: var(--color-text-muted); margin: 4px 0 0 0;">
+              Optional public YouTube link. Analyzed once by Gemini for steps; video content is not downloaded, stored, or scraped.
+            </p>
+          </div>
+
           <div class="goal-clarification-hint" id="goal-clarification-hint" style="display: none;">
             Custom goal active. Stale responses cleared.
           </div>

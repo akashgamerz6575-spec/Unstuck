@@ -18,11 +18,13 @@ import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { convertCapturePixelRect, DisplayBounds } from '../shared/coordinates.js';
 import { resolveTargetInCapture, terminateTesseractWorker } from './target-resolver.js';
-import { getForegroundWindowInfo } from './window-scoping.js';
+import { getForegroundWindowInfo, isValidTargetWindow } from './window-scoping.js';
 import { extractOcrCandidates } from './candidate-extractor.js';
 import { queryGeminiCoach, CoachingTurnHistory } from './gemini-coach.js';
 import { calculateWindowCrop } from '../shared/crop-geometry.js';
 import { defaultApiBudget, defaultSessionBudget } from '../shared/api-budget.js';
+import { analyzeTutorialVideo } from '../shared/tutorial-service.js';
+import { resolveModelName } from '../shared/gemini-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -120,6 +122,8 @@ let currentStepNumber = 1;
 let coachingGoal = 'Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.';
 let coachingHistory: CoachingTurnHistory[] = [];
 let previousInstruction: string | null = null;
+let tutorialVideoUrl: string | null = null;
+let tutorialStepsContext: string | null = null;
 
 /**
  * Creates the Launch Window (1040x700 resizable)
@@ -281,6 +285,8 @@ function handleSessionReset(): void {
   defaultSessionBudget.resetSession();
   coachingHistory = [];
   previousInstruction = null;
+  tutorialVideoUrl = null;
+  tutorialStepsContext = null;
   currentStepNumber = 1;
   isPaused = false;
   console.log(`[SESSION RESET] Coaching session and in-memory budget reset.`);
@@ -291,7 +297,7 @@ function handleSessionReset(): void {
 
   sendCoachUpdate({
     state: 'ready',
-    instruction: 'Session reset. Focus LibreOffice Calc and click Check to begin.',
+    instruction: 'Session reset. Focus your target application and click Check to begin.',
     observation: 'Ready for initial check.',
     budget: defaultSessionBudget.getRemaining()
   });
@@ -369,17 +375,17 @@ async function executeCoachingTurn(): Promise<boolean> {
       return false;
     }
 
-    // 3. Target Scoping: verify active foreground window is Calc
+    // 3. Target Scoping: verify active foreground window is an active application
     const windowInfo = getForegroundWindowInfo();
-    console.log(`[Target Scoping] Active window: "${windowInfo.title}" (Process: ${windowInfo.process})`);
+    console.log(`[Target Scoping] Active window: "${windowInfo.title}" (Process: ${windowInfo.process}, isCalc: ${windowInfo.isCalc})`);
 
-    if (!windowInfo.isCalc) {
-      console.warn(`[Target Scoping Guard] Active window is not LibreOffice Calc!`);
+    if (!isValidTargetWindow(windowInfo)) {
+      console.warn(`[Target Scoping Guard] No valid target application in foreground.`);
       restoreCaptureWindows();
       sendCoachUpdate({
         state: 'error',
-        instruction: 'Please switch to LibreOffice Calc and click Check again.',
-        observation: `Current active window is "${windowInfo.title || 'Desktop'}" (${windowInfo.process || 'Unknown'}).`
+        instruction: 'Please switch to your target application and click Check again.',
+        observation: `Current active window is "${windowInfo.title || 'Desktop'}" (${windowInfo.process || 'No target application'}). Focus your software to guide.`
       });
       return false;
     }
@@ -461,13 +467,19 @@ async function executeCoachingTurn(): Promise<boolean> {
     if (requestId !== currentRequestId || isPaused) return false;
 
     // 8. Query Gemini Coach with fresh screenshot & candidates
+    const isCalcMode = windowInfo.isCalc;
+    const targetAppName = windowInfo.title ? `${windowInfo.process} (${windowInfo.title})` : windowInfo.process;
+
     const result = await queryGeminiCoach({
       apiKey: GEMINI_API_KEY,
       imageBuffer: targetImageBuffer,
       goal: coachingGoal,
       previousInstruction,
       history: coachingHistory,
-      candidates: extraction.candidates
+      candidates: extraction.candidates,
+      isCalc: isCalcMode,
+      appName: targetAppName,
+      tutorialSteps: tutorialStepsContext
     });
 
     // Record request in session budget
@@ -493,8 +505,8 @@ async function executeCoachingTurn(): Promise<boolean> {
 
     const g = result.guidance;
 
-    // 8. Grounded Overlay Highlight
-    if (result.selectedCandidate && (g.status === 'guide' || g.status === 'recover')) {
+    // 8. Grounded Overlay Highlight (scoped strictly to Calc; generic applications use text-only guidance)
+    if (isCalcMode && result.selectedCandidate && (g.status === 'guide' || g.status === 'recover')) {
       const cand = result.selectedCandidate;
       const mappingResult = convertCapturePixelRect(
         cand.pixelBbox,
@@ -540,7 +552,7 @@ async function executeCoachingTurn(): Promise<boolean> {
       mappedUiState = 'recovery';
     } else if (g.status === 'complete') {
       mappedUiState = 'complete';
-    } else if (g.status === 'uncertain' || !result.selectedCandidate) {
+    } else if (g.status === 'uncertain' || !isCalcMode || !result.selectedCandidate) {
       mappedUiState = 'text-only';
     }
 
@@ -591,17 +603,24 @@ function registerShortcuts(): void {
 }
 
 // IPC Handlers
-ipcMain.on('start-coaching', (_event, data: unknown) => {
-  if (data && typeof data === 'object' && 'goal' in data) {
-    const rawGoal = (data as { goal: unknown }).goal;
-    if (typeof rawGoal === 'string' && rawGoal.trim().length > 0) {
-      coachingGoal = rawGoal.trim();
+ipcMain.on('start-coaching', async (_event, data: unknown) => {
+  if (data && typeof data === 'object') {
+    const payload = data as Record<string, unknown>;
+    if (typeof payload.goal === 'string' && payload.goal.trim().length > 0) {
+      coachingGoal = payload.goal.trim();
+    }
+    if (typeof payload.tutorialUrl === 'string' && payload.tutorialUrl.trim().length > 0) {
+      tutorialVideoUrl = payload.tutorialUrl.trim();
+    } else {
+      tutorialVideoUrl = null;
     }
   }
+
   // Invalidate previous session history, instructions, and outlines on start/restart
   currentRequestId++;
   coachingHistory = [];
   previousInstruction = null;
+  tutorialStepsContext = null;
   currentStepNumber = 1;
   isPaused = false;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -617,15 +636,51 @@ ipcMain.on('start-coaching', (_event, data: unknown) => {
     coachWindow.show();
     sendCoachUpdate({
       state: 'ready',
-      instruction: `Goal: "${coachingGoal.slice(0, 80)}". Focus LibreOffice Calc and click Check to begin.`,
+      instruction: `Goal: "${coachingGoal.slice(0, 80)}". Focus your application and click Check to begin.`,
       observation: 'Ready for initial check.',
-      budget: defaultSessionBudget.getRemaining()
+      budget: defaultSessionBudget.getRemaining(),
+      goal: coachingGoal
     });
   }
   if (!overlayWindow) {
     overlayWindow = createOverlayWindow();
   } else {
     overlayWindow.showInactive();
+  }
+
+  // If a tutorial video URL was provided, analyze it once in session
+  if (tutorialVideoUrl && GEMINI_API_KEY) {
+    sendCoachUpdate({
+      state: 'analysing',
+      instruction: 'Analyzing tutorial video steps...',
+      observation: 'Extracting reference sequence from provided tutorial URL.',
+      goal: coachingGoal
+    });
+
+    const tutorialRes = await analyzeTutorialVideo({
+      url: tutorialVideoUrl,
+      goal: coachingGoal,
+      apiKey: GEMINI_API_KEY,
+      model: resolveModelName()
+    });
+
+    if (tutorialRes.supported && tutorialRes.stepsSummary) {
+      tutorialStepsContext = tutorialRes.stepsSummary;
+      sendCoachUpdate({
+        state: 'ready',
+        instruction: 'Tutorial reference extracted. Focus your application and click Check to begin.',
+        observation: 'Tutorial video steps available as session guidance context.',
+        goal: coachingGoal
+      });
+    } else {
+      tutorialStepsContext = null;
+      sendCoachUpdate({
+        state: 'ready',
+        instruction: tutorialRes.error || 'Tutorial video unavailable. Continuing with screenshot-only guidance.',
+        observation: 'Focus your application and click Check to begin.',
+        goal: coachingGoal
+      });
+    }
   }
 });
 

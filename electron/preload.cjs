@@ -38,8 +38,15 @@ contextBridge.exposeInMainWorld('unstuckOverlay', {
  * Narrow isolated IPC bridge for Unstuck Launch and Coach Windows.
  */
 contextBridge.exposeInMainWorld('electronAPI', {
-  startCoaching: (goal) => {
-    ipcRenderer.send('start-coaching', { goal: String(goal || '') });
+  startCoaching: (goal, tutorialUrl) => {
+    if (goal && typeof goal === 'object') {
+      ipcRenderer.send('start-coaching', goal);
+    } else {
+      ipcRenderer.send('start-coaching', {
+        goal: String(goal || ''),
+        tutorialUrl: tutorialUrl ? String(tutorialUrl) : undefined
+      });
+    }
   },
   getTargetInfo: async () => {
     return ipcRenderer.invoke('get-target-info');

@@ -283,3 +283,27 @@ To reinforce engineering rigor across the codebase ahead of final judging:
 3. **Capture Concealment & Error State Invariants (`electron/main.ts`):**
    - Added a centralized `restoreCaptureWindows()` helper.
    - Fixed an error-state defect where any exception during capture or pre-analysis left the coach panel or overlay orphaned in a hidden state; `restoreCaptureWindows()` is now guaranteed across all early-return and `catch` paths.
+
+---
+
+## 9. Application-Agnostic Mode & Tutorial Video Integration
+
+### A. Architectural Overview & Boundaries
+Unstuck has been extended from a LibreOffice Calc-only demonstrator to an **application-agnostic desktop coach** providing actionable, single-step text guidance across arbitrary desktop software:
+1. **Target Foreground Scoping:** In Electron, the hard Calc-only gate was replaced by dynamic application scoping (`isValidTargetWindow`). Any active foreground window (e.g. text editors, creative tools, CAD, web browsers) can be observed on demand, while Unstuck itself and desktop/explorer background wallpaper are strictly excluded from capture.
+2. **Text-Guidance Grounding:** For generic non-Calc applications, Unstuck operates strictly in text-guidance mode. It provides one concise, actionable instruction without fabricating control bounding boxes or injecting coordinate brackets. Grounded visual overlays remain strictly preserved and scoped to verified LibreOffice Calc workflows.
+3. **No-OCR Resilience:** The system prompt and validation contracts explicitly support text-only guidance even when OCR returns 0 candidates (`selectedCandidateId: null`).
+4. **Goal Isolation & Prompt Injection Defense:** Generic applications and custom goals never trigger the Calc horizontal bar chart preset rules, even if the user's goal contains the word "chart". All visible screen text and tutorial content are treated as strictly untrusted observations that cannot override the user's active goal or system guardrails.
+5. **Session Isolation & Rate Pacing:** 1-request-in-flight concurrency, 5-second pacing, session budget quotas, and monotonic request IDs are maintained across all modes.
+
+### B. Tutorial Video Integration
+1. **Gemini Video Understanding via `fileData`:** Unstuck supports an optional public YouTube tutorial video URL. In accordance with official Gemini API documentation, the YouTube link is passed directly via `fileData.fileUri` with `mimeType: "video/mp4"`.
+2. **Zero Video Scraping:** Videos are never downloaded, scraped, or recorded locally.
+3. **Session-Only Context Extraction:** When provided, the tutorial video is analyzed **once** upon task entry to extract a compact sequence of 4–8 high-level steps. This compact text summary is cached in the active session and passed to subsequent turn prompts, avoiding resending the full video on every check.
+4. **Graceful Fallback & Truthful Disclosure:** If the video URL is invalid, unlisted/private, or if the model candidate/region cannot process YouTube video input, Unstuck provides clear user notice and continues seamlessly with screenshot-only text guidance. The model never pretends the video was processed if it failed.
+5. **Client Secret Isolation:** Desktop video requests use the user-configured `GEMINI_API_KEY` on their local machine. No credentials are shipped, logged, or routed through third-party servers.
+
+### C. Manual Testing & Unverified Software Disclosures
+- **LibreOffice Calc (Horizontal Bar Chart Benchmark):** Fully verified with live desktop testing and synthetic regression fixtures.
+- **Application-Agnostic Mode:** Verified with 16 automated unit tests (106 tests total) covering generic non-Calc application prompts, goal isolation, zero-OCR text guidance, tutorial URL validation and failure handling, session step caching, and Calc parity.
+- **Blender / Unreal Engine 5:** Neither software package is installed on the current environment. Consequently, full manual guidance workflows for Blender and UE5 are marked **PENDING MANUAL VERIFICATION**. In adherence to project integrity rules, universal application support is **not** claimed without manual testing evidence.

@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMin = document.getElementById('btn-min');
   const btnClose = document.getElementById('btn-close');
 
+  const tutorialUrlInput = document.getElementById('tutorial-url-input');
+
   const DEFAULT_GOAL = 'Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.';
 
   // Preset button
@@ -23,27 +25,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start Coaching
   btnStart.addEventListener('click', () => {
     const goal = goalInput.value.trim() || DEFAULT_GOAL;
+    const tutorialUrl = tutorialUrlInput ? tutorialUrlInput.value.trim() : '';
     btnStart.disabled = true;
     btnStart.innerHTML = `<span>Starting…</span>`;
 
     if (window.electronAPI && typeof window.electronAPI.startCoaching === 'function') {
-      window.electronAPI.startCoaching(goal);
+      window.electronAPI.startCoaching(goal, tutorialUrl);
     } else {
-      console.log('[Launch] electronAPI.startCoaching triggered with goal:', goal);
+      console.log('[Launch] electronAPI.startCoaching triggered with goal:', goal, 'tutorialUrl:', tutorialUrl);
     }
   });
 
   // Refresh Target Window
   function updateTargetInfo(info) {
     if (!info) return;
+    const p = (info.process || '').toLowerCase();
+    const t = (info.title || '').toLowerCase();
+    const isSelf = p === 'electron' || p === 'unstuck' || t.includes('unstuck');
+    const isDesktop = info.hWnd === 0 || (p === 'explorer' && (!t || t === 'program manager'));
+
     if (info.isCalc) {
-      targetTitle.textContent = info.title || 'LibreOffice Calc detected';
+      targetTitle.textContent = info.title || 'LibreOffice Calc (Preset Benchmark)';
       targetDot.style.backgroundColor = 'var(--color-moss)';
-    } else if (info.title) {
-      targetTitle.textContent = `${info.title} (Switch to Calc)`;
-      targetDot.style.backgroundColor = 'var(--color-clay)';
+    } else if (!isSelf && !isDesktop && (info.title || info.process)) {
+      targetTitle.textContent = `Target: ${info.title || info.process} (${info.process || 'App'})`;
+      targetDot.style.backgroundColor = 'var(--color-moss)';
     } else {
-      targetTitle.textContent = 'LibreOffice Calc (Ready)';
+      targetTitle.textContent = 'Active software target (focus app to check)';
       targetDot.style.backgroundColor = 'var(--color-moss)';
     }
   }

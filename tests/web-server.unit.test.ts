@@ -314,6 +314,25 @@ describe('Web Server HTTP Endpoints Unit Tests', () => {
     assert.strictEqual(resCheck.status, 400);
   });
 
+  it('POST /api/tutorial rejects missing or invalid tutorial video URL', async () => {
+    const resEmpty = await fetch(`http://127.0.0.1:${testPort}/api/tutorial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: '', goal: 'Test' })
+    });
+    assert.strictEqual(resEmpty.status, 400);
+
+    const resInvalid = await fetch(`http://127.0.0.1:${testPort}/api/tutorial`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://vimeo.com/99999', goal: 'Test' })
+    });
+    // Handled gracefully: 200 with success: false or clear failure status
+    const data = (await resInvalid.json()) as any;
+    assert.strictEqual(data.success, false);
+    assert.match(data.error || '', /YouTube/i);
+  });
+
   it('serves static index.html on GET /', async () => {
     const res = await fetch(`http://127.0.0.1:${testPort}/`);
     assert.strictEqual(res.status, 200);

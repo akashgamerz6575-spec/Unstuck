@@ -37,6 +37,9 @@ export interface WebGuidanceRequest {
   previousInstruction: string | null;
   history: WebCoachingTurnHistory[];
   candidates: WebOcrCandidate[];
+  isCalc?: boolean;
+  appName?: string;
+  tutorialSteps?: string | null;
 }
 
 export interface WebGuidanceResult {
@@ -94,8 +97,11 @@ export function getSelectedModel(): string {
   return resolveModelName();
 }
 
-export function buildSystemPrompt(goal: string): string {
-  return buildCanonicalSystemPrompt(goal, 'web');
+export function buildSystemPrompt(
+  goal: string,
+  options?: { isCalc?: boolean; appName?: string; tutorialSteps?: string | null }
+): string {
+  return buildCanonicalSystemPrompt(goal, 'web', options);
 }
 
 const RESPONSE_SCHEMA = GEMINI_RESPONSE_SCHEMA;
@@ -119,7 +125,17 @@ export async function queryWebGeminiCoach(
     };
   }
 
-  const { imageBuffer, mimeType, goal, previousInstruction, history, candidates } = request;
+  const {
+    imageBuffer,
+    mimeType,
+    goal,
+    previousInstruction,
+    history,
+    candidates,
+    isCalc = true,
+    appName,
+    tutorialSteps
+  } = request;
 
   // Format top 150 OCR candidates
   const candidateDescriptions = candidates
@@ -132,10 +148,13 @@ export async function queryWebGeminiCoach(
     ? history.slice(-3).map(h => `Turn ${h.turnNumber}: Status=${h.status}, Instruction="${h.instruction}", Assessment=${h.assessment}`).join('\n')
     : 'No previous turns in session.';
 
-  const userPrompt = `GOAL: ${goal}
+  const appHeader = appName ? `ACTIVE APPLICATION: ${appName}\n` : '';
+  const tutorialHeader = tutorialSteps ? `TUTORIAL REFERENCE STEPS (Extracted from tutorial video):\n${tutorialSteps}\n\n` : '';
+
+  const userPrompt = `${appHeader}GOAL: ${goal}
 PREVIOUS INSTRUCTION: ${previousInstruction || 'None (Initial check)'}
 
-SESSION HISTORY:
+${tutorialHeader}SESSION HISTORY:
 ${historyText}
 
 VISIBLE OCR TEXT CANDIDATES IN SCREENSHOT:
@@ -145,7 +164,7 @@ Please evaluate the uploaded screenshot and return your structured coaching resp
 
   const requestBody = {
     systemInstruction: {
-      parts: [{ text: buildSystemPrompt(goal) }]
+      parts: [{ text: buildSystemPrompt(goal, { isCalc, appName, tutorialSteps }) }]
     },
     contents: [
       {

@@ -305,6 +305,7 @@ class UnstuckWebApp {
   private btnResetSession = document.getElementById('btn-reset-session') as HTMLButtonElement;
 
   private goalInput = document.getElementById('goal-input') as HTMLTextAreaElement;
+  private tutorialUrlInput = document.getElementById('tutorial-url-input') as HTMLInputElement | null;
   private goalModeChip = document.getElementById('goal-mode-chip') as HTMLElement | null;
   private goalClarificationHint = document.getElementById('goal-clarification-hint') as HTMLElement | null;
   private currentGoal: string = "Create a horizontal bar chart from A1:B5, including the Department and Requests headers, titled Requests by department.";
@@ -706,6 +707,7 @@ class UnstuckWebApp {
         body: JSON.stringify({
           sessionId: this.sessionId,
           goal: this.goalInput.value.trim(),
+          tutorialUrl: this.tutorialUrlInput?.value.trim() || undefined,
           imageBase64: this.imageBase64,
           previousInstruction,
           history: this.history

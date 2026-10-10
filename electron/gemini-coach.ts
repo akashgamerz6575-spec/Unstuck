@@ -37,6 +37,9 @@ export interface CoachingRequestOptions {
   history: CoachingTurnHistory[];
   candidates: OcrCandidate[];
   isScreenUnchanged?: boolean;
+  isCalc?: boolean;
+  appName?: string;
+  tutorialSteps?: string | null;
 }
 
 export interface CoachingTurnResult {
@@ -49,8 +52,11 @@ export interface CoachingTurnResult {
   statusCode?: number;
 }
 
-export function buildSystemPrompt(goal: string): string {
-  return buildCanonicalSystemPrompt(goal, 'desktop');
+export function buildSystemPrompt(
+  goal: string,
+  options?: { isCalc?: boolean; appName?: string; tutorialSteps?: string | null }
+): string {
+  return buildCanonicalSystemPrompt(goal, 'desktop', options);
 }
 
 const RESPONSE_SCHEMA = GEMINI_RESPONSE_SCHEMA;
@@ -63,7 +69,18 @@ export async function queryGeminiCoach(
   options: CoachingRequestOptions
 ): Promise<CoachingTurnResult> {
   const startTime = performance.now();
-  const { apiKey, imageBuffer, goal, previousInstruction, history, candidates, isScreenUnchanged } = options;
+  const {
+    apiKey,
+    imageBuffer,
+    goal,
+    previousInstruction,
+    history,
+    candidates,
+    isScreenUnchanged,
+    isCalc = true,
+    appName,
+    tutorialSteps
+  } = options;
 
   if (!apiKey || apiKey.trim().length === 0) {
     return {
@@ -86,20 +103,23 @@ export async function queryGeminiCoach(
     ? history.slice(-3).map(h => `Turn ${h.turnNumber}: Status=${h.status}, Instruction="${h.instruction}", Assessment=${h.assessment}`).join('\n')
     : 'No previous turns in session.';
 
-  const userPrompt = `GOAL: ${goal}
+  const appHeader = appName ? `ACTIVE APPLICATION: ${appName}\n` : '';
+  const tutorialHeader = tutorialSteps ? `TUTORIAL REFERENCE STEPS (Extracted from tutorial video):\n${tutorialSteps}\n\n` : '';
+
+  const userPrompt = `${appHeader}GOAL: ${goal}
 PREVIOUS INSTRUCTION: ${previousInstruction || 'None (Initial check)'}
 
-SESSION HISTORY:
+${tutorialHeader}SESSION HISTORY:
 ${historyText}
 
-VISIBLE OCR TEXT CANDIDATES IN CALC:
+VISIBLE OCR TEXT CANDIDATES:
 ${candidateDescriptions || 'No candidates detected.'}
 
 Please evaluate the fresh visible screenshot and return your structured coaching response.`;
 
   const requestBody = {
     systemInstruction: {
-      parts: [{ text: buildSystemPrompt(goal) }]
+      parts: [{ text: buildSystemPrompt(goal, { isCalc, appName, tutorialSteps }) }]
     },
     contents: [
       {

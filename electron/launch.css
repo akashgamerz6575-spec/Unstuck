@@ -202,6 +202,52 @@ body {
   box-shadow: var(--shadow-glow-moss);
 }
 
+.tutorial-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-label-sub {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.optional-text {
+  font-weight: normal;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+.tutorial-url-input {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1.5px solid var(--color-border-fine);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text-dark);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tutorial-url-input:focus {
+  border-color: var(--color-moss);
+  box-shadow: var(--shadow-glow-moss);
+}
+
+.tutorial-privacy-notice {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
 /* Target Window Detector Row */
 .target-detector {
   display: flex;

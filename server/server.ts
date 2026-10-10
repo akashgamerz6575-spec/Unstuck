@@ -22,6 +22,7 @@ import { validateImageBuffer } from './image-validator.js';
 import { sessionManager } from './session-manager.js';
 import { extractCandidatesFromBuffer, terminateWebOcrWorker } from './ocr-service.js';
 import { queryWebGeminiCoach, resolveApiKey, getSelectedModel } from './gemini-service.js';
+import { analyzeTutorialVideo } from '../shared/tutorial-service.js';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const HOST = '0.0.0.0';
@@ -272,6 +273,58 @@ export const requestHandler: http.RequestListener = async (req, res) => {
     return;
   }
 
+  // 3.5. Tutorial Video Analysis Endpoint (Analyze once per session)
+  if (method === 'POST' && pathname === '/api/tutorial') {
+    try {
+      const body = await readJsonBody(req);
+      const payload = (body && typeof body === 'object' && !Array.isArray(body)) ? (body as Record<string, unknown>) : {};
+      const url = typeof payload.url === 'string' ? payload.url.trim() : '';
+      const goal = typeof payload.goal === 'string' ? payload.goal.trim() : 'Software task guidance';
+      const sessionId = typeof payload.sessionId === 'string' && payload.sessionId.trim().length > 0
+        ? payload.sessionId.trim().slice(0, 64)
+        : 'default';
+
+      if (!url) {
+        sendJson(res, 400, { success: false, error: 'Missing tutorial video URL.' });
+        return;
+      }
+
+      const apiKey = resolveApiKey();
+      if (!apiKey) {
+        sendJson(res, 500, {
+          success: false,
+          error: 'GEMINI_API_KEY is not configured on this server.'
+        });
+        return;
+      }
+
+      const result = await analyzeTutorialVideo({
+        url,
+        goal,
+        apiKey,
+        model: getSelectedModel()
+      });
+
+      if (result.supported && result.stepsSummary) {
+        sessionManager.setTutorialSteps(sessionId, result.stepsSummary);
+      } else {
+        sessionManager.setTutorialSteps(sessionId, null);
+      }
+
+      sendJson(res, 200, {
+        success: result.supported,
+        stepsSummary: result.stepsSummary,
+        error: result.error
+      });
+    } catch (err) {
+      sendJson(res, 500, {
+        success: false,
+        error: `Tutorial video processing error: ${err instanceof Error ? err.message : String(err)}`
+      });
+    }
+    return;
+  }
+
   // 4. Main Check Endpoint
   if (method === 'POST' && pathname === '/api/check') {
     let sessionId = 'default';
@@ -363,6 +416,32 @@ export const requestHandler: http.RequestListener = async (req, res) => {
         validation.height
       );
 
+      // Determine if Calc mode or application-agnostic mode
+      const isCalc = payload.isCalc !== undefined ? Boolean(payload.isCalc) : /chart|calc|spreadsheet/i.test(rawGoal);
+      const appName = typeof payload.appName === 'string' && payload.appName.trim().length > 0
+        ? payload.appName.trim().slice(0, 100)
+        : (isCalc ? 'LibreOffice Calc' : 'Active application');
+
+      // Tutorial context management: reuse cached steps or analyze once if URL supplied
+      let tutorialSteps = sessionManager.getTutorialSteps(sessionId);
+      const tutorialUrl = typeof payload.tutorialUrl === 'string' ? payload.tutorialUrl.trim() : null;
+
+      if (!tutorialSteps && tutorialUrl) {
+        const apiKey = resolveApiKey();
+        if (apiKey) {
+          const tutRes = await analyzeTutorialVideo({
+            url: tutorialUrl,
+            goal: rawGoal,
+            apiKey,
+            model: getSelectedModel()
+          });
+          if (tutRes.supported && tutRes.stepsSummary) {
+            tutorialSteps = tutRes.stepsSummary;
+            sessionManager.setTutorialSteps(sessionId, tutorialSteps);
+          }
+        }
+      }
+
       // Query Gemini Coach
       const geminiResult = await queryWebGeminiCoach({
         imageBuffer,
@@ -370,7 +449,10 @@ export const requestHandler: http.RequestListener = async (req, res) => {
         goal: rawGoal,
         previousInstruction,
         history,
-        candidates: ocrResult.candidates
+        candidates: ocrResult.candidates,
+        isCalc,
+        appName,
+        tutorialSteps
       });
 
       if (!geminiResult.success || !geminiResult.guidance) {
@@ -386,11 +468,11 @@ export const requestHandler: http.RequestListener = async (req, res) => {
       const guidance = geminiResult.guidance;
 
       // Highlight geometry resolution:
-      // If guidance is uncertain or complete, highlight is strictly suppressed.
+      // If guidance is uncertain or complete, or generic application mode (!isCalc), highlight is strictly suppressed.
       let targetBox = guidance.targetBox;
       let hasTargetHighlight = guidance.hasTargetHighlight;
 
-      if (guidance.status === 'uncertain' || guidance.status === 'complete') {
+      if (!isCalc || guidance.status === 'uncertain' || guidance.status === 'complete') {
         targetBox = null;
         hasTargetHighlight = false;
       } else if (geminiResult.selectedCandidate) {

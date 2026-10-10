@@ -52,10 +52,11 @@ $r = New-Object WinScoper+RECT
 $pName = ""
 if ($targetPid -gt 0) { $pName = (Get-Process -Id $targetPid -ErrorAction SilentlyContinue).ProcessName }
 
-# If the foreground window is Unstuck itself (due to user clicking Check/Start in our own window),
-# locate the active LibreOffice Calc window rather than falsely rejecting the user click.
+# If the foreground window is Unstuck itself (due to user clicking Check/Start in our own window) or zero,
+# find the active target application window.
 $isSelf = ($pName -eq "electron" -or $pName -eq "unstuck" -or $sb.ToString() -match "Unstuck" -or $h -eq [IntPtr]::Zero)
 if ($isSelf) {
+    # Check if Calc is open first (preserves existing Calc workflow)
     $calcProc = Get-Process -Name soffice, soffice.bin -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
     if ($calcProc) {
         $h = $calcProc.MainWindowHandle
@@ -64,6 +65,23 @@ if ($isSelf) {
         $targetPid = [uint32]$calcProc.Id
         [WinScoper]::GetWindowRect($h, [ref]$r) | Out-Null
         $pName = $calcProc.ProcessName
+    } else {
+        # Check for other active non-Unstuck, non-Explorer processes with a main window
+        $otherProc = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
+            $_.MainWindowHandle -ne 0 -and 
+            $_.ProcessName -ne "electron" -and 
+            $_.ProcessName -ne "unstuck" -and 
+            $_.ProcessName -ne "explorer" -and 
+            $_.MainWindowTitle.Length -gt 0 
+        } | Select-Object -First 1
+        if ($otherProc) {
+            $h = $otherProc.MainWindowHandle
+            $sb = New-Object System.Text.StringBuilder 256
+            [WinScoper]::GetWindowText($h, $sb, 256) | Out-Null
+            $targetPid = [uint32]$otherProc.Id
+            [WinScoper]::GetWindowRect($h, [ref]$r) | Out-Null
+            $pName = $otherProc.ProcessName
+        }
     }
 }
 
@@ -99,6 +117,37 @@ export function isCalcWindow(process: string, title: string): boolean {
     t.includes('.csv');
 
   return isCalcProcess || isCalcTitle;
+}
+
+/**
+ * Checks whether the detected window title or process belongs to Unstuck itself.
+ */
+export function isUnstuckWindow(process: string, title: string): boolean {
+  const p = (process || '').toLowerCase().trim();
+  const t = (title || '').toLowerCase().trim();
+  return p === 'electron' || p === 'unstuck' || t.includes('unstuck');
+}
+
+/**
+ * Checks whether the detected window is the desktop / explorer shell background.
+ */
+export function isDesktopWindow(process: string, title: string, hWnd = 0): boolean {
+  const p = (process || '').toLowerCase().trim();
+  const t = (title || '').toLowerCase().trim();
+  if (hWnd === 0 && !p && !t) return true;
+  if (p === 'explorer' && (!t || t === 'program manager' || t === 'desktop')) return true;
+  return false;
+}
+
+/**
+ * Validates whether a foreground window is a valid external target application.
+ * Excludes Unstuck itself and desktop/explorer shell surfaces.
+ */
+export function isValidTargetWindow(info: ForegroundWindowInfo): boolean {
+  if (info.hWnd === 0 && !info.title && !info.process) return false;
+  if (isUnstuckWindow(info.process, info.title)) return false;
+  if (isDesktopWindow(info.process, info.title, info.hWnd)) return false;
+  return true;
 }
 
 /**
