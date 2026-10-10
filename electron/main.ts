@@ -141,7 +141,7 @@ function createLaunchWindow(): BrowserWindow {
     minWidth: 720,
     minHeight: 520,
     frame: false,
-    backgroundColor: '#111B15',
+    backgroundColor: '#FAF6EF',
     center: true,
     show: false,
     webPreferences: {
@@ -159,16 +159,16 @@ function createLaunchWindow(): BrowserWindow {
 }
 
 /**
- * Creates the Active Coach Window (compact ~380px paper panel)
+ * Creates the Active Coach Window (compact ~390px pastel panel)
  */
 function createCoachWindow(isMockMode = false): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
 
   const margin = 20;
-  const panelW = 380;
-  const maxAvailableH = Math.max(360, workArea.height - margin * 2);
-  const panelH = Math.min(480, maxAvailableH);
+  const panelW = 390;
+  const maxAvailableH = Math.max(380, workArea.height - margin * 2);
+  const panelH = Math.min(500, maxAvailableH);
 
   const x = Math.max(workArea.x + margin, Math.min(workArea.x + workArea.width - panelW - margin, Math.round(workArea.x + workArea.width - panelW - margin)));
   const y = Math.max(workArea.y + margin, Math.min(workArea.y + workArea.height - panelH - margin, Math.round(workArea.y + workArea.height - panelH - margin)));
@@ -706,13 +706,25 @@ ipcMain.on('resume-session', () => {
 ipcMain.on('stop-session', () => {
   isPaused = false;
   handleDismiss();
+  handleSessionReset();
   if (coachWindow && !coachWindow.isDestroyed()) coachWindow.hide();
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
-  if (launchWindow && !launchWindow.isDestroyed()) launchWindow.show();
+  if (launchWindow && !launchWindow.isDestroyed()) {
+    launchWindow.show();
+    launchWindow.focus();
+    launchWindow.webContents.send('launch-state-reset');
+  }
 });
 
 ipcMain.on('reset-session', () => {
   handleSessionReset();
+  if (coachWindow && !coachWindow.isDestroyed()) coachWindow.hide();
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
+  if (launchWindow && !launchWindow.isDestroyed()) {
+    launchWindow.show();
+    launchWindow.focus();
+    launchWindow.webContents.send('launch-state-reset');
+  }
 });
 
 ipcMain.on('window-minimize', (event) => {

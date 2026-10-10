@@ -54,7 +54,9 @@ if ($targetPid -gt 0) { $pName = (Get-Process -Id $targetPid -ErrorAction Silent
 
 # If the foreground window is Unstuck itself (due to user clicking Check/Start in our own window) or zero,
 # find the active target application window.
-$isSelf = ($pName -eq "electron" -or $pName -eq "unstuck" -or $sb.ToString() -match "Unstuck" -or $h -eq [IntPtr]::Zero)
+$tStr = $sb.ToString()
+$isUnstuckInternal = ($tStr -eq "Unstuck" -or $tStr -like "Unstuck Coach*" -or $tStr -like "Unstuck —*" -or $tStr -like "Unstuck - *") -and ($tStr -notmatch "Antigravity|Visual Studio|Code")
+$isSelf = (($pName -eq "electron" -or $pName -eq "unstuck") -and $isUnstuckInternal) -or $h -eq [IntPtr]::Zero
 if ($isSelf) {
     # Check if Calc is open first (preserves existing Calc workflow)
     $calcProc = Get-Process -Name soffice, soffice.bin -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
@@ -125,7 +127,33 @@ export function isCalcWindow(process: string, title: string): boolean {
 export function isUnstuckWindow(process: string, title: string): boolean {
   const p = (process || '').toLowerCase().trim();
   const t = (title || '').toLowerCase().trim();
-  return p === 'electron' || p === 'unstuck' || t.includes('unstuck');
+
+  // If the process is clearly a non-Electron desktop app or editor, it's not Unstuck
+  if (p !== 'electron' && p !== 'unstuck') {
+    return false;
+  }
+
+  // Avoid falsely classifying external IDEs/editors/browsers that have "Unstuck" in project path or document title
+  if (
+    t.includes('antigravity') ||
+    t.includes('visual studio code') ||
+    t.includes('code - ') ||
+    t.includes('chrome') ||
+    t.includes('edge') ||
+    t.includes('firefox')
+  ) {
+    return false;
+  }
+
+  // Match Unstuck's own windows (Launch, Coach, Overlay)
+  return (
+    t === 'unstuck' ||
+    t === 'unstuck coach' ||
+    t.startsWith('unstuck coach') ||
+    t.startsWith('unstuck —') ||
+    t.startsWith('unstuck - find your next move') ||
+    t.startsWith('unstuck - less stuck')
+  );
 }
 
 /**

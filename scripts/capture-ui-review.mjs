@@ -47,7 +47,7 @@ app.whenReady().then(async () => {
     width: 1040,
     height: 700,
     frame: false,
-    backgroundColor: '#111B15',
+    backgroundColor: '#FAF6EF',
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -68,8 +68,8 @@ app.whenReady().then(async () => {
 
   // 2. Capture Coach Window across states
   const coachWin = new BrowserWindow({
-    width: 380,
-    height: 440,
+    width: 390,
+    height: 490,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',

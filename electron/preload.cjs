@@ -76,5 +76,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (typeof callback === 'function') {
       ipcRenderer.on('coach-state-update', (_event, data) => callback(data));
     }
+  },
+  onLaunchReset: (callback) => {
+    if (typeof callback === 'function') {
+      ipcRenderer.on('launch-state-reset', (_event, data) => callback(data));
+    }
   }
 });

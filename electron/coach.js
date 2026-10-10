@@ -13,7 +13,136 @@
  * 9. text-only
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+/**
+ * Unstuck - Coach TTS Controller
+ * Manages local text-to-speech for actionable instructions.
+ */
+export function createCoachTtsController(options = {}) {
+  const getInstruction = options.getInstruction || (() => '');
+  const onStateChange = options.onStateChange || (() => {});
+  const getSpeechSynthesis = options.getSpeechSynthesis || (() => (typeof window !== 'undefined' ? window.speechSynthesis : undefined));
+  const getUtteranceClass = options.getUtteranceClass || (() => (typeof window !== 'undefined' ? (window.SpeechSynthesisUtterance || globalThis.SpeechSynthesisUtterance) : undefined));
+
+  let isSpeaking = false;
+  let activeUtterance = null;
+  let currentSpokenText = '';
+
+  function isSupported() {
+    const synth = getSpeechSynthesis();
+    const UtteranceClass = getUtteranceClass();
+    return Boolean(synth && UtteranceClass);
+  }
+
+  function stop() {
+    const synth = getSpeechSynthesis();
+    if (synth) {
+      try {
+        synth.cancel();
+      } catch (e) {
+        // Safe guard against synthesis cancel errors
+      }
+    }
+    isSpeaking = false;
+    activeUtterance = null;
+    currentSpokenText = '';
+    onStateChange({ isSpeaking: false, label: 'Read instruction aloud', notice: null });
+  }
+
+  function speak(overrideText) {
+    if (!isSupported()) {
+      onStateChange({ 
+        isSpeaking: false, 
+        label: 'Read instruction aloud', 
+        notice: 'Speech synthesis is unavailable on this device.' 
+      });
+      return false;
+    }
+
+    // Stop any in-progress speech first before starting new one
+    stop();
+
+    const rawText = overrideText !== undefined ? overrideText : getInstruction();
+    const textToSpeak = typeof rawText === 'string' ? rawText.trim() : '';
+
+    if (!textToSpeak) {
+      onStateChange({ 
+        isSpeaking: false, 
+        label: 'Read instruction aloud', 
+        notice: 'No active instruction to read.' 
+      });
+      return false;
+    }
+
+    const synth = getSpeechSynthesis();
+    const UtteranceClass = getUtteranceClass();
+
+    try {
+      const utterance = new UtteranceClass(textToSpeak);
+      activeUtterance = utterance;
+      currentSpokenText = textToSpeak;
+
+      utterance.onstart = () => {
+        isSpeaking = true;
+        onStateChange({ isSpeaking: true, label: 'Stop speaking', notice: null });
+      };
+
+      utterance.onend = () => {
+        isSpeaking = false;
+        activeUtterance = null;
+        currentSpokenText = '';
+        onStateChange({ isSpeaking: false, label: 'Read instruction aloud', notice: null });
+      };
+
+      utterance.onerror = (event) => {
+        // Canceled or interrupted utterances are expected when user stops or guidance changes
+        const isNormalStop = event && (event.error === 'canceled' || event.error === 'interrupted');
+        isSpeaking = false;
+        activeUtterance = null;
+        currentSpokenText = '';
+        onStateChange({ 
+          isSpeaking: false, 
+          label: 'Read instruction aloud', 
+          notice: isNormalStop ? null : 'Could not play audio. Please read the instruction above.' 
+        });
+      };
+
+      synth.speak(utterance);
+      // Immediately reflect playing state for responsive feedback
+      isSpeaking = true;
+      onStateChange({ isSpeaking: true, label: 'Stop speaking', notice: null });
+      return true;
+    } catch (err) {
+      isSpeaking = false;
+      activeUtterance = null;
+      currentSpokenText = '';
+      onStateChange({ 
+        isSpeaking: false, 
+        label: 'Read instruction aloud', 
+        notice: 'Speech synthesis encountered an error.' 
+      });
+      return false;
+    }
+  }
+
+  function toggle() {
+    if (isSpeaking) {
+      stop();
+    } else {
+      speak();
+    }
+  }
+
+  return {
+    isSupported,
+    isSpeaking: () => isSpeaking,
+    getActiveText: () => currentSpokenText,
+    speak,
+    stop,
+    toggle
+  };
+}
+
+function initCoachPanel() {
   const panel = document.getElementById('coach-panel');
   const brandIndicator = document.getElementById('brand-indicator');
   const statusBadge = document.getElementById('status-badge');
@@ -29,12 +158,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCheck = document.getElementById('btn-check');
   const btnPause = document.getElementById('btn-pause');
   const btnStop = document.getElementById('btn-stop');
+  const btnTts = document.getElementById('btn-tts');
+  const ttsNotice = document.getElementById('tts-notice');
   const budgetChip = document.getElementById('budget-chip');
   const mockBar = document.getElementById('mock-bar');
   const mockStateSelect = document.getElementById('mock-state-select');
 
   let currentState = 'ready';
   let isPaused = false;
+
+  // Local Text-to-Speech Controller for actionable instructions
+  const ttsController = createCoachTtsController({
+    getInstruction: () => (instructionText && instructionText.textContent ? instructionText.textContent.trim() : ''),
+    onStateChange: ({ isSpeaking, label, notice }) => {
+      if (!btnTts) return;
+      btnTts.setAttribute('aria-pressed', isSpeaking ? 'true' : 'false');
+      btnTts.classList.toggle('speaking', isSpeaking);
+      btnTts.setAttribute('aria-label', label);
+      btnTts.setAttribute('title', label);
+
+      const iconSpeaker = btnTts.querySelector('.tts-icon-speaker');
+      const iconStop = btnTts.querySelector('.tts-icon-stop');
+      if (iconSpeaker) iconSpeaker.style.display = isSpeaking ? 'none' : 'block';
+      if (iconStop) iconStop.style.display = isSpeaking ? 'block' : 'none';
+
+      if (ttsNotice) {
+        ttsNotice.textContent = notice || '';
+        ttsNotice.style.display = notice ? 'block' : 'none';
+      }
+    }
+  });
+
+  if (btnTts) {
+    btnTts.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ttsController.toggle();
+    });
+  }
 
   const STATE_DEFINITIONS = {
     ready: {
@@ -133,6 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentState = stateName;
     const def = STATE_DEFINITIONS[stateName] || STATE_DEFINITIONS.ready;
 
+    // Immediately stop any prior speech when guidance or state changes
+    ttsController.stop();
+
     panel.className = `coach-panel ${payload.panelClass || def.panelClass}`;
     statusBadge.textContent = payload.badge || def.badge;
     instructionText.textContent = payload.instruction || def.instruction;
@@ -184,13 +347,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Expose mock state switcher for developer review harness
+  // Expose mock state switcher and tts controller for developer review harness
   window.__applyMockState = applyState;
+  window.__ttsController = ttsController;
 
   // Check button click
   btnCheck.addEventListener('click', () => {
+    ttsController.stop();
     if (currentState === 'complete') {
-      if (window.electronAPI && window.electronAPI.resetSession) {
+      if (window.electronAPI && window.electronAPI.stopSession) {
+        window.electronAPI.stopSession();
+      } else if (window.electronAPI && window.electronAPI.resetSession) {
         window.electronAPI.resetSession();
       }
       return;
@@ -203,6 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pause / Resume
   btnPause.addEventListener('click', () => {
+    ttsController.stop();
     if (isPaused) {
       if (window.electronAPI && window.electronAPI.resumeSession) {
         window.electronAPI.resumeSession();
@@ -220,9 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Stop button
   btnStop.addEventListener('click', () => {
+    ttsController.stop();
     if (window.electronAPI && window.electronAPI.stopSession) {
       window.electronAPI.stopSession();
     }
+  });
+
+  // Unload listener to stop speech synthesis on window close/destroy
+  window.addEventListener('beforeunload', () => {
+    ttsController.stop();
   });
 
   // Developer Mock Bar
@@ -250,4 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     applyState('ready');
   }
-});
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCoachPanel);
+  } else {
+    initCoachPanel();
+  }
+}

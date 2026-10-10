@@ -194,7 +194,11 @@ describe('Window Scoping & Target Guard Rules', () => {
   it('identifies Unstuck self windows to prevent coach from targeting itself', () => {
     assert.equal(isUnstuckWindow('electron', 'Unstuck Coach'), true);
     assert.equal(isUnstuckWindow('unstuck', 'Unstuck — Find your next move'), true);
-    assert.equal(isUnstuckWindow('code', 'AGENTS.md - Unstuck - Visual Studio Code'), true); // title contains Unstuck repo name
+    assert.equal(isUnstuckWindow('unstuck', 'Unstuck — Less stuck. More doing.'), true);
+    assert.equal(isUnstuckWindow('electron', 'Unstuck'), true);
+    assert.equal(isUnstuckWindow('code', 'AGENTS.md - Unstuck - Visual Studio Code'), false); // external editors with Unstuck project are not Unstuck itself
+    assert.equal(isUnstuckWindow('Antigravity IDE', 'Unstuck - Antigravity IDE - judging_readiness.md'), false);
+    assert.equal(isUnstuckWindow('AppleMusic', 'Apple Music'), false);
     assert.equal(isUnstuckWindow('blender', 'Blender'), false);
     assert.equal(isUnstuckWindow('notepad', 'Untitled - Notepad'), false);
   });
