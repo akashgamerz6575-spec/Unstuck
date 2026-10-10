@@ -584,6 +584,311 @@ body {
   }
 }
 
+/* ==========================================================================
+   Gemini API Key Status & Modal Dialog
+   ========================================================================== */
+.key-status-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-heading);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  -webkit-app-region: no-drag;
+}
+
+.key-status-chip:hover {
+  background: rgba(36, 17, 47, 0.05);
+  color: var(--color-ink);
+}
+
+.key-status-chip:focus-visible {
+  outline: 2px solid var(--color-coral);
+  outline-offset: 1px;
+}
+
+.key-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  flex-shrink: 0;
+  transition: background-color 0.2s ease;
+}
+
+.key-chip-dot.configured {
+  background: var(--color-success);
+}
+
+/* Key Setup Modal Backdrop & Card */
+.key-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(36, 17, 47, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+  -webkit-app-region: no-drag;
+}
+
+.key-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 16px 40px rgba(36, 17, 47, 0.18);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.key-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.key-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.key-badge-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  background: var(--color-lavender);
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.key-modal-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.btn-close-modal:hover {
+  color: var(--color-ink);
+  background: rgba(36, 17, 47, 0.05);
+}
+
+.key-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.key-modal-desc {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--color-ink-secondary);
+  margin: 0;
+}
+
+.key-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--color-surface-pure);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.key-status-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.status-indicator-dot.active {
+  background: var(--color-success);
+}
+
+.btn-text-danger {
+  background: none;
+  border: none;
+  color: #DC2626;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.btn-text-danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.key-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.key-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.key-input {
+  width: 100%;
+  padding: 11px 40px 11px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-pure);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.key-input:focus {
+  border-color: var(--color-coral);
+  box-shadow: 0 0 0 3px rgba(255, 121, 95, 0.15);
+}
+
+.btn-toggle-eye {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  color: var(--color-ink-muted);
+}
+
+.key-feedback-box {
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  font-size: 12.5px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.key-feedback-box.error {
+  background: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid #FCA5A5;
+}
+
+.key-feedback-box.success {
+  background: #DCFCE7;
+  color: #166534;
+  border: 1px solid #86EFAC;
+}
+
+.key-feedback-box.info {
+  background: var(--color-lavender-soft);
+  color: var(--color-ink-pill);
+  border: 1px solid var(--color-lavender);
+}
+
+.key-links-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--color-ink-secondary);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-coral);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 12.5px;
+}
+
+.link-btn:hover {
+  color: #E25B42;
+}
+
+.key-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-save-key {
+  padding: 10px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-coral);
+  color: #ffffff;
+  border: none;
+  font-family: var(--font-heading);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(255, 121, 95, 0.25);
+}
+
+.btn-save-key:hover {
+  background: #F26C52;
+  transform: translateY(-1px);
+}
+
+.btn-save-key:active {
+  transform: translateY(0);
+}
+
+.btn-save-key:disabled,
+.btn-sec:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

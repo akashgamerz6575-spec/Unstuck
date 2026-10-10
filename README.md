@@ -4,7 +4,34 @@
 > Meet **Nori**, an interactive desktop pair coach guiding beginners through complex desktop software tasks with on-demand screen observation, local OCR grounding, pass-through visual overlays, progress verification, and mistake recovery.
 > 
 > 🌐 **Live Web Companion:** [https://unstuck-nori.onrender.com/](https://unstuck-nori.onrender.com/)  
-> 📦 **GitHub Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)
+> 📦 **GitHub Repository:** [https://github.com/akashgamerz6575-spec/Unstuck](https://github.com/akashgamerz6575-spec/Unstuck)  
+> 💻 **Windows Installer:** [Download v1.0.0 (GitHub Releases)](https://github.com/akashgamerz6575-spec/Unstuck/releases/tag/v1.0.0)
+
+---
+
+## 💾 Windows Desktop Download
+
+Download the first standalone Windows release of Unstuck for Windows 10/11 (64-bit):
+
+* 📥 **[Download Unstuck Setup 1.0.0.exe](https://github.com/akashgamerz6575-spec/Unstuck/releases/download/v1.0.0/Unstuck.Setup.1.0.0.exe)** *(File size: ~120.7 MB | Release: v1.0.0)*
+* 🔑 **SHA-256 Checksum:** `8B37061ABB5F890423934A11411D011CBAD130C3EC81ACAE0AC220DB046FC4AE`
+
+### Installation & First-Run Setup
+1. **Download & Install:** Run `Unstuck Setup 1.0.0.exe`. It installs per-user into `%LOCALAPPDATA%\Programs\Unstuck` without requiring administrator privileges.
+2. **Windows SmartScreen Note:** This open-source build is unsigned. Windows may display a blue *"Windows protected your PC"* banner. Click **More info** → **Run anyway** to proceed. *(We do not claim code signing or a commercial EV certificate).*
+3. **Personal Gemini Key Setup:** No `.env` file, terminal, or Git checkout needed:
+   - On first launch, Nori prompts you to connect your personal Gemini API key.
+   - Obtain a key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+   - Click **Test connection** to verify connectivity with Gemini.
+   - Click **Save key**. Your key is encrypted using Windows DPAPI via Electron `safeStorage` under `%APPDATA%\Unstuck\gemini_credential.enc`.
+   - Your key is never stored in plaintext, never logged, never exposed to the renderer, and never sent anywhere other than Google's official Gemini API.
+   - You can replace or remove your key anytime via the **Gemini Key** chip in the title bar.
+
+### Supported Scope & Guidance Modes
+* **LibreOffice Calc (Verified Preset Benchmark):** Full visual observation, grounded coordinate bounding-box overlays, step verification, and mistake recovery.
+* **Generic Desktop Applications (Text-Only Guidance):** Target window detection with actionable next-step text guidance. No coordinate highlights or automated clicks are applied to unverified apps.
+* **Local Text-to-Speech:** Click the speaker icon beside any coaching step to hear the instruction read aloud.
+* **Optional Tutorial Video Guidance:** Supply a public YouTube tutorial URL to provide reference context for complex workflows.
 
 ---
 

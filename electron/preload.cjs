@@ -81,5 +81,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (typeof callback === 'function') {
       ipcRenderer.on('launch-state-reset', (_event, data) => callback(data));
     }
+  },
+  getKeyStatus: async () => {
+    return ipcRenderer.invoke('get-key-status');
+  },
+  testApiKey: async (candidateKey) => {
+    return ipcRenderer.invoke('test-api-key', candidateKey);
+  },
+  saveApiKey: async (candidateKey) => {
+    return ipcRenderer.invoke('save-api-key', candidateKey);
+  },
+  removeApiKey: async () => {
+    return ipcRenderer.invoke('remove-api-key');
+  },
+  openExternal: (url) => {
+    ipcRenderer.invoke('open-external-url', url);
   }
 });

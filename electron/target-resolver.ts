@@ -41,7 +41,14 @@ export type TargetResolutionResult =
 let workerInstance: Worker | null = null;
 let workerInitPromise: Promise<Worker> | null = null;
 
-const CACHE_DIR = path.resolve(process.cwd(), '.cache', 'tesseract');
+import { app } from 'electron';
+
+function getOcrCacheDir(): string {
+  if (typeof app !== 'undefined' && app && typeof app.getPath === 'function') {
+    return path.join(app.getPath('userData'), 'tesseract');
+  }
+  return path.resolve(process.cwd(), '.cache', 'tesseract');
+}
 
 /**
  * Gets or initializes a single reused English Tesseract worker.
@@ -56,11 +63,12 @@ export async function getTesseractWorker(): Promise<Worker> {
   }
 
   workerInitPromise = (async () => {
-    if (!fs.existsSync(CACHE_DIR)) {
-      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    const cacheDir = getOcrCacheDir();
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
     }
     const worker = await createWorker('eng', 1, {
-      cachePath: CACHE_DIR,
+      cachePath: cacheDir,
       gzip: true,
       errorHandler: (err: unknown) => {
         console.error('[OCR Worker Error]', err);

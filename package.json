@@ -1,16 +1,16 @@
 {
   "name": "unstuck",
+  "productName": "Unstuck",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
-  },
+  "description": "Interactive AI Desktop Coach",
+  "main": "dist/electron/main.js",
+  "author": "Unstuck Team",
   "type": "module",
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs && node scripts/copy-web-assets.mjs",
     "build:web": "tsc && node scripts/copy-web-assets.mjs",
+    "build:installer": "npm run build && electron-builder --win nsis --x64",
+    "pack": "npm run build && electron-builder --dir",
     "start": "electron dist/electron/main.js",
     "start:web": "node dist/server/server.js",
     "web": "node dist/server/server.js",
@@ -26,9 +26,54 @@
     "url": "https://github.com/akashgamerz6575-spec/Unstuck/issues"
   },
   "homepage": "https://github.com/akashgamerz6575-spec/Unstuck#readme",
+  "build": {
+    "appId": "com.unstuck.coach",
+    "productName": "Unstuck",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/electron/**/*",
+      "dist/shared/**/*",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.map",
+      "!captures/**/*",
+      "!tests/**/*",
+      "!.cache/**/*",
+      "!.env*",
+      "!fixtures/**/*",
+      "!scripts/**/*",
+      "!docs/**/*",
+      "!reference/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/nori.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Unstuck",
+      "uninstallDisplayName": "Unstuck",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^26.6.4",
     "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2"
   },
   "dependencies": {

@@ -23,7 +23,7 @@
           </svg>
         </div>
 
-        <!-- Functional Navigation: Home active (placed in left corner) -->
+        <!-- Functional Navigation: Home & Gemini Key Status -->
         <nav class="nav-pill" aria-label="Main Navigation">
           <div class="nav-item active" tabindex="0" role="link" aria-current="page">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -31,6 +31,10 @@
             </svg>
             <span>Home</span>
           </div>
+          <button type="button" class="key-status-chip" id="btn-key-status" title="Manage your personal Gemini API Key" aria-haspopup="dialog">
+            <span class="key-chip-dot" id="key-chip-dot" aria-hidden="true"></span>
+            <span id="key-chip-label">Gemini Key</span>
+          </button>
         </nav>
       </div>
 
@@ -157,7 +161,67 @@
           </form>
         </div>
       </section>
-    </main>
+    <!-- Gemini API Key Setup & Management Modal -->
+    <div class="key-modal-backdrop" id="key-modal-backdrop" aria-hidden="true" style="display: none;">
+      <div class="key-modal-card" role="dialog" aria-modal="true" aria-labelledby="key-modal-title">
+        <header class="key-modal-header">
+          <div class="key-modal-title-row">
+            <div class="key-badge-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="5.5" cy="5.5" r="3.5"/>
+                <path d="M8 8l5.5 5.5M11.5 11.5L14 14M11.5 13.5l1.5-1.5"/>
+              </svg>
+            </div>
+            <h2 class="key-modal-title" id="key-modal-title">Connect your Gemini API Key</h2>
+          </div>
+          <button type="button" class="btn-close-modal" id="btn-close-key-modal" aria-label="Close setup modal">✕</button>
+        </header>
+
+        <div class="key-modal-body">
+          <p class="key-modal-desc">
+            Unstuck runs locally on your PC and needs your personal Google Gemini API key to observe software and guide you step-by-step.
+          </p>
+
+          <div class="key-status-banner" id="key-current-status-banner" style="display: none;">
+            <div class="key-status-banner-left">
+              <span class="status-indicator-dot active" id="key-status-dot"></span>
+              <span id="key-status-banner-text">Active Key: ••••••••3aBc</span>
+            </div>
+            <button type="button" class="btn-text-danger" id="btn-remove-key" title="Remove saved key">Remove key</button>
+          </div>
+
+          <div class="key-input-group">
+            <label for="input-api-key" class="field-label" id="label-api-key">Gemini API Key</label>
+            <div class="key-input-wrap">
+              <input 
+                type="password" 
+                id="input-api-key" 
+                class="key-input" 
+                placeholder="Paste your key: AIzaSy..." 
+                autocomplete="off" 
+                spellcheck="false"
+                aria-labelledby="label-api-key"
+              />
+              <button type="button" class="btn-toggle-eye" id="btn-toggle-key-visibility" title="Show or hide key" aria-label="Toggle key visibility">
+                👁️
+              </button>
+            </div>
+          </div>
+
+          <div class="key-feedback-box" id="key-feedback" role="status" aria-live="polite" style="display: none;"></div>
+
+          <div class="key-links-row">
+            <span class="key-hint">Need a key? </span>
+            <button type="button" class="link-btn" id="link-get-key">Get a free key from Google AI Studio ↗</button>
+          </div>
+        </div>
+
+        <footer class="key-modal-footer">
+          <button type="button" class="btn-sec" id="btn-test-key">Test connection</button>
+          <button type="button" class="btn-save-key" id="btn-save-key">Save key</button>
+        </footer>
+      </div>
+    </div>
   </div>
 
   <script src="./launch.js"></script>

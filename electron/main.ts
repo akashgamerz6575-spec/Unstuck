@@ -67,41 +67,23 @@ function parseCliArgs(): CliOptions {
 
 const cliOptions = parseCliArgs();
 
-// Load local .env safely in main process
-function loadApiKey(): string | null {
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (!fs.existsSync(envPath)) return null;
+import { getActiveApiKey, getKeyStatus, testKeyConnection, saveKey, removeKey, openExternalUrl } from './key-storage.js';
 
-  try {
-    const content = fs.readFileSync(envPath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eqIdx = trimmed.indexOf('=');
-      if (eqIdx !== -1) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        const val = trimmed.slice(eqIdx + 1).trim();
-        if (key === 'GEMINI_API_KEY' && val.length > 10 && !val.includes('placeholder') && !val.includes('your_')) {
-          return val;
-        }
-      }
-    }
-  } catch {
-    // Read failure fallback
-  }
-  return null;
-}
-
-const GEMINI_API_KEY = loadApiKey();
-
-// Safe Asset Path Resolver
-const projectRoot = process.cwd();
+// Safe Runtime Asset Path Resolver (resolves sibling dist/electron assets in packaged and unpackaged environments)
 function resolveAsset(relativePath: string): string {
-  const rootPath = path.resolve(projectRoot, 'electron', relativePath);
-  if (fs.existsSync(rootPath)) return rootPath;
+  // 1. Check sibling to current __dirname (dist/electron)
   const distPath = path.resolve(__dirname, relativePath);
   if (fs.existsSync(distPath)) return distPath;
-  return rootPath;
+
+  // 2. Check app.getAppPath()
+  const appPath = typeof app !== 'undefined' && app && typeof app.getAppPath === 'function' ? app.getAppPath() : __dirname;
+  const inDist = path.resolve(appPath, 'dist', 'electron', relativePath);
+  if (fs.existsSync(inDist)) return inDist;
+
+  const inSrc = path.resolve(appPath, 'electron', relativePath);
+  if (fs.existsSync(inSrc)) return inSrc;
+
+  return distPath;
 }
 
 const preloadPath = resolveAsset('preload.cjs');
@@ -329,11 +311,12 @@ async function executeCoachingTurn(): Promise<boolean> {
     return false;
   }
 
-  if (!GEMINI_API_KEY) {
-    console.error('[AI Coach Error] No GEMINI_API_KEY configured in .env.');
+  const apiKey = getActiveApiKey();
+  if (!apiKey) {
+    console.error('[AI Coach Error] No Gemini API key configured.');
     sendCoachUpdate({
       state: 'error',
-      instruction: 'API Key missing. Please configure GEMINI_API_KEY in your local .env file.',
+      instruction: 'API Key missing. Please configure your personal Gemini API key in Unstuck.',
       observation: 'Secret isolation preserved.'
     });
     return false;
@@ -471,7 +454,7 @@ async function executeCoachingTurn(): Promise<boolean> {
     const targetAppName = windowInfo.title ? `${windowInfo.process} (${windowInfo.title})` : windowInfo.process;
 
     const result = await queryGeminiCoach({
-      apiKey: GEMINI_API_KEY,
+      apiKey: apiKey,
       imageBuffer: targetImageBuffer,
       goal: coachingGoal,
       previousInstruction,
@@ -649,7 +632,8 @@ ipcMain.on('start-coaching', async (_event, data: unknown) => {
   }
 
   // If a tutorial video URL was provided, analyze it once in session
-  if (tutorialVideoUrl && GEMINI_API_KEY) {
+  const activeKey = getActiveApiKey();
+  if (tutorialVideoUrl && activeKey) {
     sendCoachUpdate({
       state: 'analysing',
       instruction: 'Analyzing tutorial video steps...',
@@ -660,7 +644,7 @@ ipcMain.on('start-coaching', async (_event, data: unknown) => {
     const tutorialRes = await analyzeTutorialVideo({
       url: tutorialVideoUrl,
       goal: coachingGoal,
-      apiKey: GEMINI_API_KEY,
+      apiKey: activeKey,
       model: resolveModelName()
     });
 
@@ -686,6 +670,27 @@ ipcMain.on('start-coaching', async (_event, data: unknown) => {
 
 ipcMain.handle('get-target-info', async () => {
   return getForegroundWindowInfo();
+});
+
+ipcMain.handle('get-key-status', async () => {
+  return getKeyStatus();
+});
+
+ipcMain.handle('test-api-key', async (_event, candidateKey: string) => {
+  return testKeyConnection(candidateKey);
+});
+
+ipcMain.handle('save-api-key', async (_event, candidateKey: string) => {
+  return saveKey(candidateKey);
+});
+
+ipcMain.handle('remove-api-key', async () => {
+  return removeKey();
+});
+
+ipcMain.handle('open-external-url', async (_event, url: string) => {
+  openExternalUrl(url);
+  return true;
 });
 
 ipcMain.on('trigger-check', () => {
