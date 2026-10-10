@@ -18,7 +18,7 @@
     "coach": "electron dist/electron/main.js --coach",
     "proof": "electron dist/electron/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test dist/tests/*.unit.test.js",
+    "test": "node scripts/run-unit-tests.mjs",
     "test:integration": "node --test dist/tests/*.integration.test.js",
     "review:ui": "electron scripts/capture-ui-review.mjs"
   },
