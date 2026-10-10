@@ -22,7 +22,7 @@ import { validateImageBuffer } from './image-validator.js';
 import { sessionManager } from './session-manager.js';
 import { extractCandidatesFromBuffer, terminateWebOcrWorker } from './ocr-service.js';
 import { queryWebGeminiCoach, resolveApiKey, getSelectedModel } from './gemini-service.js';
-import { analyzeTutorialVideo } from '../shared/tutorial-service.js';
+import { analyzeTutorialVideo, extractYouTubeVideoId } from '../shared/tutorial-service.js';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const HOST = '0.0.0.0';
@@ -286,6 +286,16 @@ export const requestHandler: http.RequestListener = async (req, res) => {
 
       if (!url) {
         sendJson(res, 400, { success: false, error: 'Missing tutorial video URL.' });
+        return;
+      }
+
+      const videoId = extractYouTubeVideoId(url);
+      if (!videoId) {
+        sendJson(res, 200, {
+          success: false,
+          stepsSummary: null,
+          error: 'Tutorial video guidance supports public YouTube tutorial URLs only.'
+        });
         return;
       }
 
